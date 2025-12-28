@@ -106,11 +106,13 @@ function getLocalDayName(timestamp: number, timezoneOffset: number): string {
 }
 
 export async function getCurrentWeather(city: string, unit: 'metric' | 'imperial' = 'imperial'): Promise<WeatherData> {
-    const apiKey = process.env.WEATHER_API_KEY;
+    const apiKey = process.env.NEXT_PUBLIC_WEATHER_API_KEY || process.env.WEATHER_API_KEY;
+    const baseUrl = process.env.NEXT_PUBLIC_WEATHER_BASE_URL || 'https://api.openweathermap.org/data/2.5';
 
-    // If no key, throw error
+    // If no key, ensure safe failure (log error but don't crash)
     if (!apiKey) {
-        throw new Error("No API Key found. Please check your .env.local file.");
+        console.error("No API Key found. Check .env.local for NEXT_PUBLIC_WEATHER_API_KEY.");
+        return Promise.reject(new Error("API Key Missing"));
     }
 
     try {
