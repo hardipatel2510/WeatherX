@@ -57,7 +57,7 @@ export default function TenDayForecast({ data, currentTemp }: TenDayForecastProp
             {/* Header */}
             <div className="flex items-center gap-2 opacity-80 mb-5 pl-1">
                 <Calendar className={`w-4 h-4 ${iconColor}`} />
-                <span className={`text-xs font-semibold uppercase tracking-widest drop-shadow-sm ${subTextColor}`}>10-Day Forecast</span>
+                <span className={`text-xs font-semibold uppercase tracking-widest drop-shadow-sm ${subTextColor}`}>{data.length}-Day Forecast</span>
             </div>
 
             <div className="flex flex-col flex-1 justify-between gap-1">

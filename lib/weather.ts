@@ -48,7 +48,7 @@ export interface DailyForecast {
 function getMoonPhase(date: Date) {
     let year = date.getFullYear();
     let month = date.getMonth() + 1;
-    let day = date.getDate();
+    const day = date.getDate();
     if (month < 3) {
         year--;
         month += 12;
@@ -57,59 +57,7 @@ function getMoonPhase(date: Date) {
     const e = 30.6 * month;
     const jd = c + e + day - 694039.09; // jd is total days elapsed
     const b = jd / 29.53058867; // divide by the moon cycle
-    const phase = b - Math.floor(b);
-    return phase; // 0..1
-}
-
-function getHash(str: string) {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-        const char = str.charCodeAt(i);
-        hash = (hash << 5) - hash + char;
-        hash = hash & hash;
-    }
-    return Math.abs(hash);
-}
-
-function seededRandom(seed: number) {
-    const x = Math.sin(seed++) * 10000;
-    return x - Math.floor(x);
-}
-
-function getMockWeather(city: string): WeatherData {
-    const seed = getHash(city.toLowerCase());
-    const baseTemp = 25 + Math.floor(seededRandom(seed) * 10); // 25-35°C (Realistic Warm)
-
-    return {
-        temp: baseTemp,
-        feelsLike: baseTemp + 2,
-        condition: ["Clear", "Clouds", "Rain"][Math.floor(seededRandom(seed + 1) * 3)],
-        high: baseTemp + 5,
-        low: baseTemp - 5,
-        city: city,
-        windSpeed: Math.floor(seededRandom(seed + 4) * 20) + 1,
-        windDeg: Math.floor(seededRandom(seed + 6) * 360),
-        humidity: Math.floor(seededRandom(seed + 5) * 60) + 30,
-        pressure: 1012,
-        uvIndex: 5,
-        visibility: 10,
-        airQuality: 50,
-        sunrise: "06:00 AM",
-        sunset: "08:00 PM",
-        timezone: -14400, // Mock EST (-4h)
-        clouds: 20, // Mock clear skies
-        hourly: Array.from({ length: 24 }, (_, i) => ({
-            time: `${i}:00`,
-            temp: baseTemp + Math.floor(seededRandom(seed + i) * 5 - 2),
-            icon: seededRandom(seed + i * 10) > 0.5 ? "sun" : "cloud",
-        })),
-        daily: Array.from({ length: 10 }, (_, i) => ({
-            day: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][(new Date().getDay() + i) % 7],
-            min: baseTemp - 8 + Math.floor(seededRandom(seed + i * 2) * 5),
-            max: baseTemp + 4 + Math.floor(seededRandom(seed + i * 3) * 5),
-            icon: ["sun", "cloud", "rain"][Math.floor(seededRandom(seed + i * 20) * 3)],
-        })),
-    };
+    return b - Math.floor(b); // 0..1
 }
 
 // --- API Helpers ---
@@ -147,16 +95,8 @@ function formatLocalTime(timestamp: number, timezoneOffset: number, options: Int
     // Construct a date that represents the local time at the target location.
     // timestamp is UTC seconds. timezoneOffset is seconds.
     // (timestamp + timezoneOffset) * 1000 gives a "shifted" UTC time.
-    // If we treat this shifted time as UTC, its components (HH:MM) match the local time.
     const shiftedDate = new Date((timestamp + timezoneOffset) * 1000);
-
-    // We get the UTC components
-    const hours = shiftedDate.getUTCHours();
-    const minutes = shiftedDate.getUTCMinutes();
-
     // Create a formatter that forces UTC, but we feed it our shifted values effectively.
-    // Actually, simpler: just map the UTC parts to a string manually or use toLocaleString with 'UTC' timeZone.
-
     return shiftedDate.toLocaleTimeString('en-US', { ...options, timeZone: 'UTC' });
 }
 
@@ -174,25 +114,52 @@ export async function getCurrentWeather(city: string, unit: 'metric' | 'imperial
     }
 
     try {
-        // Handle City Ambiguities (Prefer India for Gujarat cities)
-        let queryCity = city;
-        const lowerCity = city.toLowerCase().trim();
 
+        // 0. Normalize Input
+        let queryCity = city.trim();
+        // Remove common suffixes like "Taluka", "District" if present to help search
+        queryCity = queryCity.replace(/\s+(Taluka|District|Area|City)$/i, "");
+
+        // Handle explicit overrides
+        const lowerCity = queryCity.toLowerCase();
         if (lowerCity === 'baroda') queryCity = 'Vadodara,IN';
         else if (['ahmedabad', 'surat', 'rajkot', 'gandhinagar', 'jamnagar', 'bhavnagar'].includes(lowerCity)) {
-            queryCity = `${city},IN`;
+            queryCity = `${queryCity},IN`;
         }
 
-        // 1. Current Weather (for City Name + Lat/Lon)
-        const currentRes = await fetch(
+        // 1. Try Current Weather (Direct City Search)
+        let currentRes = await fetch(
             `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(queryCity)}&appid=${apiKey}&units=${unit}`,
             { cache: 'no-store' }
         );
 
+        // 1b. Geocoding Fallback if 404
+        if (currentRes.status === 404) {
+            console.log(`Direct search failed for "${queryCity}", trying Geocoding...`);
+            const geoRes = await fetch(
+                `http://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(queryCity)}&limit=1&appid=${apiKey}`,
+                { cache: 'no-store' }
+            );
+
+            if (geoRes.ok) {
+                const geoData = await geoRes.json();
+                if (geoData && geoData.length > 0) {
+                    const { lat, lon } = geoData[0];
+                    // Retry fetch with coordinates
+                    currentRes = await fetch(
+                        `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=${unit}`,
+                        { cache: 'no-store' }
+                    );
+                }
+            }
+        }
+
         // Check specific error codes
         if (!currentRes.ok) {
             console.warn(`OWM Current Weather Error: ${currentRes.status} ${currentRes.statusText}`);
-            throw new Error(`Current weather fetch failed: ${currentRes.statusText}`);
+            // Throw a user-friendly error
+            if (currentRes.status === 404) throw new Error(`Location "${city}" not found.`);
+            throw new Error(`Weather Unavailable: ${currentRes.statusText}`);
         }
 
         const currentData = await currentRes.json();
@@ -228,7 +195,7 @@ export async function getCurrentWeather(city: string, unit: 'metric' | 'imperial
                     oneCallData = await oneCallRes25.json();
                 }
             }
-        } catch (e) {
+        } catch {
             console.warn("One Call API fetch failed, defaulting to basic data for UV/Moon.");
         }
 
@@ -243,7 +210,7 @@ export async function getCurrentWeather(city: string, unit: 'metric' | 'imperial
                 const pollutionData = await pollutionRes.json();
                 airQuality = pollutionData?.list?.[0]?.main?.aqi ?? 1;
             }
-        } catch (e) {
+        } catch {
             console.warn("Air Pollution API fetch failed.");
         }
 
@@ -293,24 +260,37 @@ export async function getCurrentWeather(city: string, unit: 'metric' | 'imperial
             }));
         }
 
-        // Process Daily (Mapping 5-day forecast to daily high/lows)
-        const dailyMap: { [key: string]: { min: number; max: number; icon: string } } = {};
-        forecastData.list.forEach((item: { dt: number; main: { temp_min: number; temp_max: number }; weather: { icon: string }[] }) => {
-            const day = getLocalDayName(item.dt, timezoneOffset);
-            if (!dailyMap[day]) {
-                dailyMap[day] = { min: item.main.temp_min, max: item.main.temp_max, icon: mapIcon(item.weather[0].icon) };
-            } else {
-                dailyMap[day].min = Math.min(dailyMap[day].min, item.main.temp_min);
-                dailyMap[day].max = Math.max(dailyMap[day].max, item.main.temp_max);
-            }
-        });
+        // Process Daily (Mapping 5-day forecast OR using One Call)
+        let daily: DailyForecast[] = [];
 
-        let daily: DailyForecast[] = Object.keys(dailyMap).map(day => ({
-            day,
-            min: dailyMap[day].min,
-            max: dailyMap[day].max,
-            icon: dailyMap[day].icon
-        }));
+        if (oneCallData && oneCallData.daily) {
+            // One Call (7-8 days)
+            daily = oneCallData.daily.map((item: any) => ({
+                day: getLocalDayName(item.dt, timezoneOffset),
+                min: item.temp.min,
+                max: item.temp.max,
+                icon: mapIcon(item.weather[0].icon)
+            }));
+        } else {
+            // Fallback: Aggregating 5-Day/3-Hour Forecast
+            const dailyMap: { [key: string]: { min: number; max: number; icon: string } } = {};
+            forecastData.list.forEach((item: { dt: number; main: { temp_min: number; temp_max: number }; weather: { icon: string }[] }) => {
+                const day = getLocalDayName(item.dt, timezoneOffset);
+                if (!dailyMap[day]) {
+                    dailyMap[day] = { min: item.main.temp_min, max: item.main.temp_max, icon: mapIcon(item.weather[0].icon) };
+                } else {
+                    dailyMap[day].min = Math.min(dailyMap[day].min, item.main.temp_min);
+                    dailyMap[day].max = Math.max(dailyMap[day].max, item.main.temp_max);
+                }
+            });
+
+            daily = Object.keys(dailyMap).map(day => ({
+                day,
+                min: dailyMap[day].min,
+                max: dailyMap[day].max,
+                icon: dailyMap[day].icon
+            }));
+        }
 
         // NOT using mock extension anymore strictly. But forecast usually returns 5 days defined by API.
         // User asked to remove Mocks. If < 10 days, we just show what we have.
@@ -354,5 +334,4 @@ export async function getCurrentWeather(city: string, unit: 'metric' | 'imperial
     }
 }
 
-export async function getHourlyForecast() { return []; }
-export async function getDailyForecast() { return []; }
+

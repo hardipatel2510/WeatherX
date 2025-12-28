@@ -4,7 +4,12 @@ import { getCurrentWeather } from '@/lib/weather';
 
 
 export async function fetchWeather(city: string, unit: 'metric' | 'imperial') {
-    return await getCurrentWeather(city, unit);
+    try {
+        return await getCurrentWeather(city, unit);
+    } catch (e) {
+        console.error("Server Action fetchWeather failed:", e);
+        return null;
+    }
 }
 
 export async function getCityFromCoords(lat: number, lon: number) {
