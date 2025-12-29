@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Search, MapPin } from 'lucide-react';
 import { useTimeTheme } from '@/components/ui/TimeTheme';
 import { getCityFromCoords } from '@/app/actions';
+import TextType from '@/components/TextType';
 
 interface SearchBarProps {
     defaultValue?: string;
@@ -74,14 +75,34 @@ export default function SearchBar({ defaultValue = '' }: SearchBarProps) {
             <form onSubmit={handleSubmit} className="flex-1 relative">
                 <div className={`hyper-glass flex items-center px-4 h-[50px] transition-all hover:bg-white/10 rounded-full w-full ${isDay ? 'bg-white/40 border-white/40' : ''}`}>
                     <Search className={`w-5 h-5 mr-3 shrink-0 ${iconColor}`} />
-                    <Input
-                        type="text"
-                        placeholder="Search for a city..."
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                        className={`bg-transparent !border-none !shadow-none !ring-0 !outline-none text-lg h-full px-0 w-full ${textColor} ${placeholderColor}`}
-                        disabled={loading}
-                    />
+
+                    <div className="relative flex-1 h-full">
+                        {query.length === 0 && (
+                            <div
+                                className="absolute top-0 left-0 h-full w-full flex items-center pointer-events-none select-none"
+                                style={{ lineHeight: 1, paddingTop: '2px', transform: 'translateY(1px)', letterSpacing: '0.02em' }}
+                            >
+                                <TextType
+                                    text={['Ahmedabad', 'London', 'New York', 'Tokyo', 'Paris']}
+                                    typingSpeed={40}
+                                    deletingSpeed={50}
+                                    pauseTime={1400}
+                                    loop={true}
+                                    cursorCharacter="|"
+                                    cursorBlinkSpeed={500}
+                                    showCursor={true}
+                                    className={`text-lg ${textColor} opacity-60`}
+                                />
+                            </div>
+                        )}
+                        <Input
+                            type="text"
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                            className={`bg-transparent !border-none !shadow-none !ring-0 !outline-none text-lg h-full px-0 w-full relative z-10 ${textColor} placeholder:opacity-0`} // Hide default placeholder
+                            disabled={loading}
+                        />
+                    </div>
                 </div>
             </form>
 

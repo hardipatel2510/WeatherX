@@ -4,8 +4,10 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 0 0% 0%;
+    --foreground: 0 0% 100%;
+    /* Default to Ahmedabad Night Theme */
+    --bg-gradient: radial-gradient(circle at 50% -20%, #1e3a8a 0%, #3b0764 40%, #000000 100%);
   }
 }
 
@@ -16,6 +18,13 @@
 
   body {
     @apply bg-background text-foreground;
+    /* Dynamic Background with Smooth Transition */
+    background: var(--bg-gradient);
+    background-attachment: fixed;
+    transition: background 1.5s ease-in-out;
+    min-height: 100vh;
+    font-feature-settings: "ss01", "ss02", "cv01", "cv02";
+    -webkit-font-smoothing: antialiased;
   }
 }
 

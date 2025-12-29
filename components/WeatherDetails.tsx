@@ -31,6 +31,8 @@ function getMoonPhaseDescription(phase: number) {
     return "Waning Crescent";
 }
 
+import { StaggerContainer, FadeInItem } from '@/components/ui/motion-wrappers';
+
 const DetailCard = ({ title, icon: Icon, children, isMorning, isAfternoon, onClick, className, allowOverflow = false }:
     { title: string, icon: React.ElementType, children: React.ReactNode, isMorning: boolean, isAfternoon: boolean, onClick?: () => void, className?: string, allowOverflow?: boolean }) => {
 
@@ -43,20 +45,26 @@ const DetailCard = ({ title, icon: Icon, children, isMorning, isAfternoon, onCli
     const dayBorderStyles = isDay ? '!border-black/15 !shadow-[inset_0_1px_0_rgba(255,255,255,0.25)]' : '';
 
     return (
-        <Card onClick={onClick} className={`liquid-glass p-3 flex flex-col justify-between border-0 group hover:bg-white/20 transition-colors h-[170px] relative ${allowOverflow ? 'overflow-visible' : 'overflow-hidden'} ${textColor} ${dayBorderStyles} ${className}`}>
-            <div className="flex items-center gap-2 opacity-80 z-10">
-                <Icon className={`w-4 h-4 uppercase ${iconColor}`} />
-                <span className={`text-xs font-semibold tracking-wider uppercase truncate ${subTextColor}`}>{title}</span>
-            </div>
-            <div className="flex-1 flex flex-col justify-center items-center w-full relative text-center z-10 mt-1">
-                {children}
-            </div>
-        </Card>
+        <FadeInItem className={className}>
+            <Card onClick={onClick} className={`liquid-glass p-3 flex flex-col justify-between border-0 group hover:bg-white/20 transition-colors h-[170px] relative ${allowOverflow ? 'overflow-visible' : 'overflow-hidden'} ${textColor} ${dayBorderStyles} h-full`}>
+                <div className="flex items-center gap-2 opacity-80 z-10">
+                    <Icon className={`w-4 h-4 uppercase ${iconColor}`} />
+                    <span className={`text-xs font-semibold tracking-wider uppercase truncate ${subTextColor}`}>{title}</span>
+                </div>
+                <div className="flex-1 flex flex-col justify-center items-center w-full relative text-center z-10 mt-1">
+                    {children}
+                </div>
+            </Card>
+        </FadeInItem>
     );
 };
 
+import { useTimeTheme } from '@/components/ui/TimeTheme';
+
 export default function WeatherDetails({ data }: WeatherDetailsProps) {
     const { convert } = useUnit();
+    const { isMorning, isAfternoon } = useTimeTheme();
+    const [mounted, setMounted] = React.useState(false);
 
     // Single Source of Truth for Time
     const [currentTime, setCurrentTime] = React.useState(new Date());
@@ -79,17 +87,16 @@ export default function WeatherDetails({ data }: WeatherDetailsProps) {
     };
 
     React.useEffect(() => {
-        // Time update logic for Sunrise/Sunset real-time calc
+        setMounted(true);
         const timer = setInterval(() => setCurrentTime(new Date()), 60000);
         return () => clearInterval(timer);
     }, []);
 
-    // Time Logic (Local Source of Truth)
-    const hour = currentTime.getHours();
-    const isMorning = hour >= 6 && hour < 12;
-    const isAfternoon = hour >= 12 && hour < 18;
+    if (!mounted) return null;
 
-    // Theme Variables
+    // Derived Time Logic using context values
+    // local hour calculation removed in favor of isMorning/isAfternoon from context for consistency
+
     const textColor = isMorning ? 'text-[#1A2B44]' : (isAfternoon ? 'text-[#3B2200]' : 'text-white');
     const subTextColor = isMorning ? 'text-[#1A2B44]/70' : (isAfternoon ? 'text-[#3B2200]/70' : 'text-slate-300');
     const graphStroke = isMorning ? '#1A2B44' : (isAfternoon ? '#3B2200' : 'rgba(255,255,255,0.4)');
@@ -97,14 +104,12 @@ export default function WeatherDetails({ data }: WeatherDetailsProps) {
     const compBorder = (isMorning || isAfternoon) ? 'border-black/10 bg-black/5' : 'border-white/20 bg-white/5';
     const sunriseColor = isMorning ? '#FF9F43' : (isAfternoon ? '#E67E22' : 'white');
 
-    // City Time Calculation for Sun Position
     const getCityLocalTime = (offsetSeconds: number) => {
         const utc = currentTime.getTime() + (currentTime.getTimezoneOffset() * 60000);
         return new Date(utc + (offsetSeconds * 1000));
     };
     const cityTime = getCityLocalTime(data.timezone ?? 0);
 
-    // Parse Sunrise/Sunset strings (e.g. "6:30 AM") to Date objects relative to cityTime
     const parseTime = (timeStr: string) => {
         const [time, period] = timeStr.split(' ');
         const [hours, minutes] = time.split(':').map(Number);
@@ -125,28 +130,21 @@ export default function WeatherDetails({ data }: WeatherDetailsProps) {
     const totalDaylight = sunsetTime.getTime() - sunriseTime.getTime();
     const progress = Math.max(0, Math.min(1, (cityTime.getTime() - sunriseTime.getTime()) / totalDaylight));
 
-    // Sun Arc Bezier Calculation
-    // Quadratic Bezier Curve: P0(20,80) -> P1(100,10) -> P2(180,80) (Canvas 200x100 relative)
     const t = progress;
     const bx = (1 - t) * (1 - t) * 20 + 2 * (1 - t) * t * 100 + t * t * 180;
     const by = (1 - t) * (1 - t) * 80 + 2 * (1 - t) * t * 10 + t * t * 80;
 
-    // Moon Logic
-    const currentMoonPhase = data.moonPhase ?? 0; // 0..1
+    const currentMoonPhase = data.moonPhase ?? 0;
     const phaseDesc = getMoonPhaseDescription(currentMoonPhase);
     const moonRadius = 40;
     const rx = moonRadius * Math.cos(2 * Math.PI * currentMoonPhase);
     const isWaxing = currentMoonPhase <= 0.5;
     const sweep = isWaxing ? (rx > 0 ? 1 : 0) : (rx < 0 ? 1 : 0);
     const termArc = `A ${Math.abs(rx)} ${moonRadius} 0 0 ${sweep} 50 ${50 - moonRadius}`;
-    // Shadow Path: Waxing shadows LEFT, Waning shadows RIGHT
-    // Center at 50,50. Top=10 (50-40), Bottom=90 (50+40)
     const shadowPath = isWaxing
         ? `M 50 ${50 + moonRadius} ${termArc} L 0 0 L 0 100 Z`
         : `M 50 ${50 + moonRadius} ${termArc} L 100 0 L 100 100 Z`;
 
-    // Pressure Logic (Fixed Range 980-1045)
-    // Formula: angle = -90 + pressurePercent * 180
     const minPressure = 980;
     const maxPressure = 1045;
     const currentPressure = (!data.pressure || isNaN(data.pressure)) ? 1013 : data.pressure;
@@ -161,7 +159,7 @@ export default function WeatherDetails({ data }: WeatherDetailsProps) {
     if (feelsLikeDiff < -1) feelsLikeDesc = "Feels cooler";
 
     return (
-        <div className="grid grid-cols-2 gap-3 w-full h-full">
+        <StaggerContainer className="grid grid-cols-2 gap-3 w-full h-full">
 
             {/* 1. UV Index */}
             <DetailCard
@@ -340,6 +338,6 @@ export default function WeatherDetails({ data }: WeatherDetailsProps) {
                     isAfternoon={isAfternoon}
                 />
             )}
-        </div>
+        </StaggerContainer>
     );
 }

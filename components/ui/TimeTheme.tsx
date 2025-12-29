@@ -32,31 +32,41 @@ export function TimeThemeProvider({ children, timezone }: TimeThemeProviderProps
     useEffect(() => {
         const calculateTime = () => {
             const now = new Date();
-            // Get UTC milliseconds: current local time + (local timezone offset in min * 60000)
             const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
-            // Target time in milliseconds
             const targetMs = utcMs + (timezone * 1000);
             const targetDate = new Date(targetMs);
             const hour = targetDate.getHours();
 
-            // Logic:
-            // Morning: 6 AM - 12 PM
-            // Afternoon: 12 PM - 5 PM (17)
-            // Evening: 5 PM - 8 PM (20)
-            // Night: 8 PM - 6 AM
+            let state: 'morning' | 'afternoon' | 'evening' | 'night' = 'night';
+            let gradient = 'radial-gradient(circle at 50% -20%, #240046 0%, #3c096c 40%, #10002b 100%)'; // Default Night
 
-            if (hour >= 6 && hour < 12) return 'morning';
-            if (hour >= 12 && hour < 17) return 'afternoon';
-            if (hour >= 17 && hour < 20) return 'evening';
-            return 'night';
+            if (hour >= 6 && hour < 12) {
+                state = 'morning';
+                // Morning: Warm Sunrise -> Soft Blue -> Light Sky
+                gradient = 'radial-gradient(circle at 50% -20%, #fed9b7 0%, #f4a261 30%, #8ecae6 100%)';
+            } else if (hour >= 12 && hour < 18) {
+                state = 'afternoon';
+                // Afternoon: Sunlight -> Bright Blue -> Deep Blue
+                gradient = 'radial-gradient(circle at 50% -20%, #fff3b0 0%, #48cae4 40%, #0077b6 100%)';
+            } else {
+                state = 'night';
+                // Night: Deep Purple -> Indigo -> Dark
+                gradient = 'radial-gradient(circle at 50% -20%, #240046 0%, #3c096c 40%, #10002b 100%)';
+            }
+
+            return { state, gradient };
         };
 
-        setTimeState(calculateTime());
+        const updateTheme = () => {
+            const { state, gradient } = calculateTime();
+            setTimeState(state);
+            document.documentElement.style.setProperty('--bg-gradient', gradient);
+        };
+
+        updateTheme();
 
         // Update every minute
-        const timer = setInterval(() => {
-            setTimeState(calculateTime());
-        }, 60000);
+        const timer = setInterval(updateTheme, 60000);
 
         return () => clearInterval(timer);
     }, [timezone]);

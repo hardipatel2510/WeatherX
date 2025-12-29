@@ -307,34 +307,21 @@ export function WeatherDetailPanel({ type, data, onClose, onNext, onPrev, isMorn
 
     return (
         <AnimatePresence>
-            <div className="fixed inset-0 z-[100] flex justify-end">
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                 <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="absolute inset-0 bg-black/20 backdrop-blur-sm"
+                    className="absolute inset-0 bg-black/40 backdrop-blur-md"
                     onClick={onClose}
                 />
 
                 <motion.div
-                    initial={{ x: '100%' }}
-                    animate={{ x: 0 }}
-                    exit={{ x: '100%' }}
-                    transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                    drag="x"
-                    dragConstraints={{ left: 0, right: 0 }}
-                    dragElastic={0.2}
-                    onDragEnd={(e, { offset }) => {
-                        // Swipe left -> Next
-                        if (offset.x < -50) {
-                            onNext();
-                        }
-                        // Swipe right -> Prev
-                        else if (offset.x > 50) {
-                            onPrev();
-                        }
-                    }}
-                    className={`relative w-full max-w-md h-full bg-white/30 backdrop-blur-2xl border-l border-white/20 shadow-2xl flex flex-col p-6 overflow-y-auto ${textColor}`}
+                    initial={{ scale: 0.85, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.85, opacity: 0 }}
+                    transition={{ type: "spring", stiffness: 320, damping: 22, mass: 0.8 }}
+                    className={`relative w-full max-w-md max-h-[85vh] bg-white/30 backdrop-blur-2xl border border-white/20 shadow-2xl flex flex-col p-6 overflow-y-auto rounded-[32px] ${textColor}`}
                 >
                     {/* Header */}
                     <div className="flex items-center justify-between mb-8 shrink-0">

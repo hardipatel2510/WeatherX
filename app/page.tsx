@@ -14,8 +14,12 @@ import SidePanel from '@/components/SidePanel';
 import SearchBar from '@/components/SearchBar';
 import { UnitProvider, UnitToggle } from '@/components/UnitProvider';
 import { TimeThemeProvider } from '@/components/ui/TimeTheme';
+import GradualBlur from '@/components/GradualBlur';
+import { StaggerContainer, FadeInItem } from '@/components/ui/motion-wrappers';
 
 import { Suspense } from 'react';
+
+import WeatherLayout from '@/components/WeatherLayout';
 
 function WeatherDashboard() {
   const searchParams = useSearchParams();
@@ -60,121 +64,107 @@ function WeatherDashboard() {
 
   return (
     <UnitProvider initialUnit={unitParam === 'metric' ? 'C' : 'F'}>
-      <TimeThemeProvider timezone={timezone}>
-        <main className="min-h-screen relative overflow-hidden font-sans selection:bg-blue-500/30 text-white">
+      <WeatherLayout timezone={timezone}>
+        <TimeThemeProvider timezone={timezone}>
 
-          {/* Cinematic Video Background */}
-          {/* Always render background so it feels alive */}
-          <CloudBackground timezone={timezone} />
-
-          {/* Top Right Unit Toggle */}
-          <div className="absolute top-4 right-4 z-50">
-            <div className="hyper-glass w-[50px] h-[50px] flex items-center justify-center hover:bg-white/10 transition-all cursor-pointer rounded-full">
-              <UnitToggle />
-            </div>
+          {/* 1. Hero Area - Show Skeleton or Data */}
+          <div className="flex flex-col items-center gap-2 mb-4 mt-8">
+            {loading ? (
+              <div className="flex flex-col items-center animate-pulse gap-2">
+                <div className="h-8 w-48 bg-white/10 rounded" />
+                <div className="h-20 w-32 bg-white/10 rounded" />
+                <div className="h-6 w-24 bg-white/10 rounded" />
+                <div className="h-4 w-40 bg-white/10 rounded" />
+              </div>
+            ) : weather ? (
+              <WeatherHero
+                city={weather.city}
+                temp={weather.temp}
+                condition={weather.condition}
+                high={weather.high}
+                low={weather.low}
+              />
+            ) : null}
           </div>
 
-          <div className="max-w-[1400px] mx-auto z-10 relative flex flex-col p-6 h-full min-h-screen gap-6">
+          {/* Search Bar - Always Interactive */}
+          <div className="w-full max-w-lg mx-auto mb-4 relative z-50">
+            <SearchBar />
+          </div>
 
-            {/* 1. Hero Area - Show Skeleton or Data */}
-            <div className="flex flex-col items-center gap-2 mb-4 mt-8">
-              {loading ? (
-                <div className="flex flex-col items-center animate-pulse gap-2">
-                  <div className="h-8 w-48 bg-white/10 rounded" />
-                  <div className="h-20 w-32 bg-white/10 rounded" />
-                  <div className="h-6 w-24 bg-white/10 rounded" />
-                  <div className="h-4 w-40 bg-white/10 rounded" />
-                </div>
-              ) : weather ? (
-                <WeatherHero
-                  city={weather.city}
-                  temp={weather.temp}
-                  condition={weather.condition}
-                  high={weather.high}
-                  low={weather.low}
+          {/* ERROR TOAST (If we have data but specific search failed) */}
+          {error && weather && (
+            <div className="w-full max-w-lg mx-auto p-4 mb-4 rounded-xl bg-red-500/20 border border-red-500/30 backdrop-blur-md text-center animate-in fade-in slide-in-from-top-4">
+              <p className="text-red-200 text-sm font-medium flex items-center justify-center gap-2">
+                <span>⚠️</span> {error}
+              </p>
+            </div>
+          )}
+
+          {/* FULL SCREEN ERROR (Only if no data at all) */}
+          {!loading && !weather && error && (
+            <div className="w-full max-w-lg mx-auto p-6 rounded-2xl liquid-glass text-center mt-20">
+              <p className="text-red-300 font-medium text-lg mb-2">Weather Unavailable</p>
+              <p className="text-white/60 mb-4">{error}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="px-6 py-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors font-medium"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          {/* LOADING SKELETON GRID */}
+          {loading && (
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 animate-pulse">
+              <div className="w-full h-32 bg-white/5 rounded-3xl lg:col-span-4" /> {/* Hourly */}
+              <div className="h-96 bg-white/5 rounded-3xl lg:col-span-1" /> {/* Left Panel */}
+              <div className="h-96 bg-white/5 rounded-3xl lg:col-span-2" /> {/* Main Grid */}
+              <div className="h-96 bg-white/5 rounded-3xl lg:col-span-1" /> {/* 10 Day */}
+            </div>
+          )}
+
+          {/* REAL CONTENT */}
+          {!loading && weather && (
+            <StaggerContainer className="flex flex-col gap-6 w-full h-full">
+
+              {/* 2. Top Row: Today's Forecast (Hourly) */}
+              <FadeInItem className="w-full">
+                <HourlyForecast
+                  data={weather.hourly}
+                  summary={`${weather.condition} conditions expected for the rest of the day.`}
                 />
-              ) : null}
-            </div>
+              </FadeInItem>
 
-            {/* Search Bar - Always Interactive */}
-            <div className="w-full max-w-lg mx-auto mb-4 relative z-50">
-              <SearchBar />
-            </div>
+              {/* 3. Main Content: 3-Column Layout */}
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 flex-1 pb-6 w-full">
 
-            {/* ERROR TOAST (If we have data but specific search failed) */}
-            {error && weather && (
-              <div className="w-full max-w-lg mx-auto p-4 mb-4 rounded-xl bg-red-500/20 border border-red-500/30 backdrop-blur-md text-center animate-in fade-in slide-in-from-top-4">
-                <p className="text-red-200 text-sm font-medium flex items-center justify-center gap-2">
-                  <span>⚠️</span> {error}
-                </p>
-              </div>
-            )}
-
-            {/* FULL SCREEN ERROR (Only if no data at all) */}
-            {!loading && !weather && error && (
-              <div className="w-full max-w-lg mx-auto p-6 rounded-2xl liquid-glass text-center mt-20">
-                <p className="text-red-300 font-medium text-lg mb-2">Weather Unavailable</p>
-                <p className="text-white/60 mb-4">{error}</p>
-                <button
-                  onClick={() => window.location.reload()}
-                  className="px-6 py-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors font-medium"
-                >
-                  Retry
-                </button>
-              </div>
-            )}
-
-            {/* LOADING SKELETON GRID */}
-            {loading && (
-              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 animate-pulse">
-                <div className="w-full h-32 bg-white/5 rounded-3xl lg:col-span-4" /> {/* Hourly */}
-                <div className="h-96 bg-white/5 rounded-3xl lg:col-span-1" /> {/* Left Panel */}
-                <div className="h-96 bg-white/5 rounded-3xl lg:col-span-2" /> {/* Main Grid */}
-                <div className="h-96 bg-white/5 rounded-3xl lg:col-span-1" /> {/* 10 Day */}
-              </div>
-            )}
-
-            {/* REAL CONTENT */}
-            {!loading && weather && (
-              <>
-                {/* 2. Top Row: Today's Forecast (Hourly) */}
-                <div className="w-full">
-                  <HourlyForecast
-                    data={weather.hourly}
-                    summary={`${weather.condition} conditions expected for the rest of the day.`}
+                {/* Left Column */}
+                <FadeInItem className="lg:col-span-1 h-full">
+                  <SidePanel
+                    temp={weather.temp}
+                    feelsLike={weather.feelsLike}
+                    airQuality={weather.airQuality}
+                    clouds={weather.clouds}
                   />
-                </div>
+                </FadeInItem>
 
-                {/* 3. Main Content: 3-Column Layout */}
-                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 flex-1 pb-6">
+                {/* Center Column */}
+                <FadeInItem className="lg:col-span-2 h-full">
+                  <WeatherDetails data={weather} />
+                </FadeInItem>
 
-                  {/* Left Column */}
-                  <div className="lg:col-span-1 h-full">
-                    <SidePanel
-                      temp={weather.temp}
-                      feelsLike={weather.feelsLike} // Fix: passes feelsLike correctly
-                      airQuality={weather.airQuality}
-                      clouds={weather.clouds}
-                    />
-                  </div>
+                {/* Right Column */}
+                <FadeInItem className="lg:col-span-1 h-full">
+                  <TenDayForecast data={weather.daily} currentTemp={weather.temp} />
+                </FadeInItem>
 
-                  {/* Center Column */}
-                  <div className="lg:col-span-2 h-full">
-                    <WeatherDetails data={weather} />
-                  </div>
-
-                  {/* Right Column */}
-                  <div className="lg:col-span-1 h-full">
-                    <TenDayForecast data={weather.daily} currentTemp={weather.temp} />
-                  </div>
-
-                </div>
-              </>
-            )}
-
-          </div>
-        </main>
-      </TimeThemeProvider>
+              </div>
+            </StaggerContainer>
+          )}
+        </TimeThemeProvider>
+      </WeatherLayout>
     </UnitProvider>
   );
 }

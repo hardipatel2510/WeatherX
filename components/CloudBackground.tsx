@@ -15,38 +15,31 @@ export default function CloudBackground({ timezone }: CloudBackgroundProps) {
         const calculateTime = () => {
             // Helper to get local time at target timezone
             const now = new Date();
-            // Get UTC milliseconds: current local time + (local timezone offset in min * 60000)
+            // Get UTC milliseconds
             const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
             // Target time in milliseconds
             const targetMs = utcMs + (timezone * 1000);
             const targetDate = new Date(targetMs);
             const hour = targetDate.getHours();
 
-            if (hour >= 6 && hour < 11) return 'morning'; // 6am - 11am
-            if (hour >= 11 && hour < 17) return 'afternoon'; // 11am - 5pm
-            if (hour >= 17 && hour < 19) return 'evening'; // 5pm - 7pm
-            return 'night'; // 7pm - 5am (Default else)
+            if (hour >= 6 && hour < 12) return 'morning';
+            if (hour >= 12 && hour < 18) return 'afternoon';
+            return 'night';
         };
 
         setTimeState(calculateTime());
         // Re-check periodically
-        const timer = setInterval(() => setTimeState(calculateTime()), 60000); // Every minute
+        const timer = setInterval(() => setTimeState(calculateTime()), 60000);
         return () => clearInterval(timer);
     }, [timezone]);
 
-    // Define Gradients based on Time State - Simplified for valid CSS
-    // Using string interpolation for classes or inline styles
+    // Define Gradients based on Time State
+    // User requested to NOT override body background, so we make these transparent or subtle overlays.
+    // We will use slight tints instead of full opaque backgrounds.
     const getGradient = () => {
-        switch (timeState) {
-            case 'morning': // Warm orange gradient
-                return 'bg-gradient-to-b from-[#FFD7A1] via-[#FFC570] to-[#FFB347]';
-            case 'afternoon': // Deep dark-orange gradient
-                return 'bg-gradient-to-b from-[#FF9F43] via-[#FF8520] to-[#FF6F00]';
-            case 'evening': // Golden/Purple/Orange (keeping compatible transition)
-                return 'bg-gradient-to-b from-[#2E2055] via-[#804060] to-[#FF8C00]';
-            case 'night': // Dark blue/black
-                return 'bg-gradient-to-b from-[#0B1026] via-[#1B2735] to-[#090A0F]';
-        }
+        // Return empty string to allow body radial gradient to show through completely
+        // Or return very low opacity tints if needed.
+        return '';
     };
 
     const gradientClass = getGradient();
