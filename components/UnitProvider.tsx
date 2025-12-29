@@ -54,9 +54,9 @@ export function UnitToggle() {
     return (
         <button
             onClick={toggleUnit}
-            className="w-full h-full flex items-center justify-center transition-colors text-white font-medium text-lg hover:text-white/80"
+            className="w-full h-full flex items-center justify-center transition-colors text-white font-bold text-xs uppercase tracking-wider hover:text-white/80"
         >
-            °{unit}
+            {unit === 'F' ? 'Imperial' : 'Metric'}
         </button>
     );
 }

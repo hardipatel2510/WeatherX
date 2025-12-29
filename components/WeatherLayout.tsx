@@ -18,7 +18,7 @@ export default function WeatherLayout({ children, timezone }: WeatherLayoutProps
 
             {/* Top Right Unit Toggle - Fixed Z-Index Higher than Blur */}
             <div className="absolute top-4 right-4 z-[100]">
-                <div className="hyper-glass w-[50px] h-[50px] flex items-center justify-center hover:bg-white/10 transition-all cursor-pointer rounded-full">
+                <div className="hyper-glass w-auto px-4 h-[40px] flex items-center justify-center hover:bg-white/10 transition-all cursor-pointer rounded-full">
                     <UnitToggle />
                 </div>
             </div>

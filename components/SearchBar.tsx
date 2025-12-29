@@ -1,13 +1,12 @@
-'use client';
-
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, MapPin } from 'lucide-react';
+import { Search, MapPin, List } from 'lucide-react';
 import { useTimeTheme } from '@/components/ui/TimeTheme';
 import { getCityFromCoords } from '@/app/actions';
 import TextType from '@/components/TextType';
+import SavedLocationsDrawer from '@/components/SavedLocationsDrawer';
 
 interface SearchBarProps {
     defaultValue?: string;
@@ -17,10 +16,11 @@ export default function SearchBar({ defaultValue = '' }: SearchBarProps) {
     const [query, setQuery] = useState(defaultValue);
     const router = useRouter();
     const [loading, setLoading] = useState(false);
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
     const searchParams = useSearchParams();
     const currentUnit = searchParams.get('unit') || 'imperial';
-    const { isMorning, isAfternoon } = useTimeTheme();
+    const { isMorning, isAfternoon, isNight } = useTimeTheme();
 
     const isDay = isMorning || isAfternoon;
 
@@ -71,6 +71,22 @@ export default function SearchBar({ defaultValue = '' }: SearchBarProps) {
 
     return (
         <div className="relative w-full flex items-center gap-3">
+            <SavedLocationsDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} />
+
+            {/* Compartment 0: List Button */}
+            <div className={`hyper-glass w-[50px] h-[50px] flex items-center justify-center transition-all hover:bg-white/10 rounded-full shrink-0 ${isDay ? 'bg-white/40 border-white/40' : ''}`}>
+                <Button
+                    onClick={() => setIsDrawerOpen(true)}
+                    variant="ghost"
+                    size="icon"
+                    className={`rounded-full w-full h-full hover:bg-transparent ${textColor} opacity-70 ${buttonHover}`}
+                    title="Saved Locations"
+                    type="button"
+                >
+                    <List className="w-5 h-5" />
+                </Button>
+            </div>
+
             {/* Compartment 1: Search Bar */}
             <form onSubmit={handleSubmit} className="flex-1 relative">
                 <div className={`hyper-glass flex items-center px-4 h-[50px] transition-all hover:bg-white/10 rounded-full w-full ${isDay ? 'bg-white/40 border-white/40' : ''}`}>
@@ -92,6 +108,7 @@ export default function SearchBar({ defaultValue = '' }: SearchBarProps) {
                                     cursorBlinkSpeed={500}
                                     showCursor={true}
                                     className={`text-lg ${textColor} opacity-60`}
+                                // Removed invalid prop 'words' if it existed before
                                 />
                             </div>
                         )}

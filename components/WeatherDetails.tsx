@@ -62,7 +62,7 @@ const DetailCard = ({ title, icon: Icon, children, isMorning, isAfternoon, onCli
 import { useTimeTheme } from '@/components/ui/TimeTheme';
 
 export default function WeatherDetails({ data }: WeatherDetailsProps) {
-    const { convert } = useUnit();
+    const { convert, unit } = useUnit();
     const { isMorning, isAfternoon } = useTimeTheme();
     const [mounted, setMounted] = React.useState(false);
 
@@ -203,8 +203,12 @@ export default function WeatherDetails({ data }: WeatherDetailsProps) {
                         </div>
                     </div>
                     <div className={`absolute flex flex-col items-center justify-center backdrop-blur-xl rounded-full w-14 h-14 border shadow-xl z-20 ${isMorning || isAfternoon ? 'bg-white/60 border-black/10' : 'bg-black/60 border-white/20'}`}>
-                        <span className={`text-xl font-bold leading-none ${textColor}`}>{Math.round(data.windSpeed)}</span>
-                        <span className={`text-[8px] uppercase font-medium mt-0.5 ${subTextColor}`}>mph</span>
+                        <span className={`text-xl font-bold leading-none ${textColor}`}>
+                            {unit === 'C' ? Math.round(data.windSpeed * 3.6) : Math.round(data.windSpeed)}
+                        </span>
+                        <span className={`text-[8px] uppercase font-medium mt-0.5 ${subTextColor}`}>
+                            {unit === 'C' ? 'km/h' : 'mph'}
+                        </span>
                     </div>
                 </div>
             </DetailCard>
