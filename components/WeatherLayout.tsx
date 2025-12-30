@@ -1,6 +1,7 @@
 'use client';
 
 import React, { ReactNode } from 'react';
+import Image from 'next/image';
 import CloudBackground from '@/components/CloudBackground';
 import { UnitToggle } from '@/components/UnitProvider';
 import GradualBlur from '@/components/GradualBlur';
@@ -15,6 +16,20 @@ export default function WeatherLayout({ children, timezone }: WeatherLayoutProps
         <main className="h-screen w-full relative overflow-hidden font-sans selection:bg-blue-500/30 text-white">
             {/* Cinematic Video/Cloud Background */}
             <CloudBackground timezone={timezone} />
+
+            {/* Top Left Logo */}
+            <div className="absolute top-4 left-4 z-[100] flex items-center gap-2">
+                <div className="relative w-10 h-10 overflow-hidden rounded-full border border-white/20 shadow-lg">
+                    <Image
+                        src="/logo.png"
+                        alt="WeatherX Logo"
+                        fill
+                        className="object-cover"
+                        priority
+                    />
+                </div>
+                <span className="text-xl font-bold tracking-tight transform translate-y-[1px] drop-shadow-md hidden sm:block">WeatherX</span>
+            </div>
 
             {/* Top Right Unit Toggle - Fixed Z-Index Higher than Blur */}
             <div className="absolute top-4 right-4 z-[100]">
