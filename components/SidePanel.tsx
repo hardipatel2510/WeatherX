@@ -1,83 +1,111 @@
 'use client';
 
 import React from 'react';
+import { motion } from 'framer-motion';
 import GlassCard from './GlassCard';
-import { Activity, Cloud as CloudIcon, ArrowUp, ArrowDown } from 'lucide-react';
+import { Activity, Cloud as CloudIcon, Thermometer } from 'lucide-react';
 import { useUnit } from './UnitProvider';
+import { useTimeTheme } from '@/components/ui/TimeTheme';
+import { StaggerContainer, FadeInItem } from '@/components/ui/motion-wrappers';
+
+import { DetailType } from './WeatherDetailPanel';
 
 interface RightPanelProps {
     temp: number;
     feelsLike: number;
     airQuality: number;
     clouds: number;
+    onDetailClick: (type: DetailType) => void;
 }
 
-function getAQILabel(aqi: number) {
-    if (aqi === 1) return { text: 'Good', color: 'bg-green-500' };
-    if (aqi === 2) return { text: 'Fair', color: 'bg-yellow-400' };
-    if (aqi === 3) return { text: 'Moderate', color: 'bg-orange-400' };
-    if (aqi === 4) return { text: 'Poor', color: 'bg-red-500' };
-    return { text: 'Very Poor', color: 'bg-purple-500' };
+// ... (helpers remain same)
+function getTempDesc(temp: number, unit: 'C' | 'F') {
+    const t = temp;
+    if (t < 10) return "Cold weather";
+    if (t < 18) return "Cool and pleasant";
+    if (t < 26) return "Comfortable temperature";
+    if (t < 32) return "Warm day";
+    return "Hot weather";
+}
+
+function getAQIDesc(aqi: number) {
+    if (aqi <= 50) return "Good – safe to breathe";
+    if (aqi <= 100) return "Moderate – acceptable air";
+    if (aqi <= 150) return "Unhealthy for sensitive people";
+    if (aqi <= 200) return "Unhealthy air";
+    return "Very unhealthy";
 }
 
 function getCloudDesc(percent: number) {
-    if (percent <= 10) return "Clear";
-    if (percent <= 50) return "Scattered";
-    if (percent <= 80) return "Broken";
+    if (percent <= 20) return "Clear skies";
+    if (percent <= 40) return "Light clouds";
+    if (percent <= 70) return "Partly cloudy";
+    if (percent <= 90) return "Mostly cloudy";
     return "Overcast";
 }
 
-import { useTimeTheme } from '@/components/ui/TimeTheme';
-
-import { StaggerContainer, FadeInItem } from '@/components/ui/motion-wrappers';
-
-export default function SidePanel({ temp, feelsLike, airQuality, clouds }: RightPanelProps) {
-    const { convert } = useUnit();
+export default function SidePanel({ temp, feelsLike, airQuality, clouds, onDetailClick }: RightPanelProps) {
+    const { convert, unit } = useUnit();
     const { isMorning, isAfternoon } = useTimeTheme();
 
     const textColor = isMorning ? 'text-[#1A2B44]' : (isAfternoon ? 'text-[#3B2200]' : 'text-white');
     const subTextColor = isMorning ? 'text-[#1A2B44]/70' : (isAfternoon ? 'text-[#3B2200]/70' : 'opacity-60');
 
+    // Calculate display values
+    const displayTemp = convert(temp);
+
     return (
         <StaggerContainer className={`flex flex-col gap-4 h-full ${textColor}`}>
-            {/* 1. Average (High/Low) */}
+            {/* 1. Average Temperature */}
             <FadeInItem className="flex-1 min-h-[140px]">
-                <GlassCard title="Average" icon={Activity} className="h-full">
-                    <div className="flex justify-between w-full px-4 items-center h-full pb-2">
-                        <div className="flex flex-col items-center">
-                            <ArrowUp className="w-5 h-5 text-orange-400 mb-1 drop-shadow-sm" />
-                            <span className={`text-3xl font-medium ${textColor}`}>{convert(feelsLike + 2)}°</span>
-                            <span className={`text-[10px] ${subTextColor}`}>High</span>
-                        </div>
-                        <div className="w-px h-12 bg-white/10 mx-1" />
-                        <div className="flex flex-col items-center">
-                            <ArrowDown className="w-5 h-5 text-blue-400 mb-1 drop-shadow-sm" />
-                            <span className={`text-3xl font-medium ${textColor}`}>{convert(feelsLike - 5)}°</span>
-                            <span className={`text-[10px] ${subTextColor}`}>Low</span>
-                        </div>
+                <GlassCard title="Average Temperature" icon={Thermometer} className="h-full" onClick={() => onDetailClick('average')}>
+                    <div className="flex flex-col items-center justify-center h-full pb-2 pointer-events-none">
+                        <motion.span
+                            initial={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                            className={`text-5xl font-light tracking-tight ${textColor}`}
+                        >
+                            {displayTemp}
+                        </motion.span>
+                        <p className={`text-base font-medium opacity-60 mt-0`}>°{unit}</p>
+                        <p className={`text-xs font-medium mt-2 ${subTextColor}`}>{getTempDesc(temp, unit)}</p>
                     </div>
                 </GlassCard>
             </FadeInItem>
 
             {/* 2. Air Quality */}
             <FadeInItem className="flex-1 min-h-[140px]">
-                <GlassCard title="Air Quality" icon={Activity} className="h-full">
-                    <div className="flex flex-col items-center w-full pb-1">
-                        <span className={`text-5xl font-light tracking-tighter drop-shadow-md ${textColor}`}>{airQuality}</span>
-                        <span className={`text-lg font-medium mt-1 ${isMorning ? 'text-[#1A2B44]' : (isAfternoon ? 'text-[#3B2200]' : 'text-slate-100')}`}>{getAQILabel(airQuality).text}</span>
-                        <div className="w-full max-w-[80px] h-1.5 bg-white/20 rounded-full mt-3 overflow-hidden border border-white/10">
-                            <div className={`h-full ${getAQILabel(airQuality).color} shadow-[0_0_10px_currentColor]`} style={{ width: `${(airQuality / 5) * 100}%` }} />
-                        </div>
+                <GlassCard title="Air Quality" icon={Activity} className="h-full" onClick={() => onDetailClick('airQuality')}>
+                    <div className="flex flex-col items-center justify-center h-full pb-2 pointer-events-none">
+                        <motion.span
+                            initial={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                            className={`text-5xl font-light tracking-tight ${textColor}`}
+                        >
+                            {airQuality}
+                        </motion.span>
+                        <p className={`text-base font-medium opacity-60 mt-0`}>AQI</p>
+                        <p className={`text-xs font-medium mt-2 ${subTextColor} text-center max-w-[120px]`}>{getAQIDesc(airQuality)}</p>
                     </div>
                 </GlassCard>
             </FadeInItem>
 
             {/* 3. Cloud Cover */}
             <FadeInItem className="flex-1 min-h-[140px]">
-                <GlassCard title="Cloud Cover" icon={CloudIcon} className="h-full">
-                    <div className="flex flex-col items-center pb-1">
-                        <span className={`text-5xl font-light tracking-tight ${textColor}`}>{clouds}%</span>
-                        <span className={`text-xs font-medium mt-2 ${subTextColor}`}>{getCloudDesc(clouds)}</span>
+                <GlassCard title="Cloud Cover" icon={CloudIcon} className="h-full" onClick={() => onDetailClick('clouds')}>
+                    <div className="flex flex-col items-center justify-center h-full pb-2 pointer-events-none">
+                        <motion.span
+                            initial={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                            className={`text-5xl font-light tracking-tight ${textColor}`}
+                        >
+                            {clouds}
+                        </motion.span>
+                        <p className={`text-base font-medium opacity-60 mt-0`}>%</p>
+                        <p className={`text-xs font-medium mt-2 ${subTextColor}`}>{getCloudDesc(clouds)}</p>
                     </div>
                 </GlassCard>
             </FadeInItem>

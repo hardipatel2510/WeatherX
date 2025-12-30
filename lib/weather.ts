@@ -19,6 +19,11 @@ export interface WeatherData {
     clouds: number; // Cloudiness %
     hourly: HourlyForecast[];
     daily: DailyForecast[];
+    // Extended Astronomy
+    moonrise?: string;
+    moonset?: string;
+    lat: number;
+    lon: number;
 }
 
 export interface HourlyForecast {
@@ -42,6 +47,15 @@ export interface DailyForecast {
     min: number;
     max: number;
     icon: string;
+    condition: string;
+    moonrise?: number; // Unix TS
+    moonset?: number;  // Unix TS
+    // Extended Metrics
+    feelsLike: number;
+    uvIndex: number;
+    windSpeed: number;
+    humidity: number;
+    pop: number; // Probability of Precipitation %
 }
 
 // --- Mock Data Helpers ---
@@ -271,26 +285,58 @@ export async function getCurrentWeather(city: string, unit: 'metric' | 'imperial
                 day: getLocalDayName(item.dt, timezoneOffset),
                 min: item.temp.min,
                 max: item.temp.max,
-                icon: mapIcon(item.weather[0].icon)
+                icon: mapIcon(item.weather[0].icon),
+                condition: mapCondition(item.weather[0].main),
+                moonrise: item.moonrise,
+                moonset: item.moonset,
+                feelsLike: item.feels_like.day,
+                uvIndex: item.uvi,
+                windSpeed: unit === 'imperial' ? item.wind_speed : item.wind_speed * 3.6,
+                humidity: item.humidity,
+                pop: Math.round((item.pop ?? 0) * 100)
             }));
         } else {
             // Fallback: Aggregating 5-Day/3-Hour Forecast
-            const dailyMap: { [key: string]: { min: number; max: number; icon: string } } = {};
-            forecastData.list.forEach((item: { dt: number; main: { temp_min: number; temp_max: number }; weather: { icon: string }[] }) => {
+            const dailyMap: { [key: string]: DailyForecast } = {};
+
+            forecastData.list.forEach((item: any) => {
                 const day = getLocalDayName(item.dt, timezoneOffset);
+                const icon = mapIcon(item.weather[0].icon);
+                const condition = mapCondition(item.weather[0].main);
+
+                // Aggregation Logic
                 if (!dailyMap[day]) {
-                    dailyMap[day] = { min: item.main.temp_min, max: item.main.temp_max, icon: mapIcon(item.weather[0].icon) };
+                    dailyMap[day] = {
+                        day,
+                        min: item.main.temp_min,
+                        max: item.main.temp_max,
+                        icon,
+                        condition,
+                        feelsLike: item.main.feels_like,
+                        uvIndex: 0, // Not available in standard forecast
+                        windSpeed: unit === 'imperial' ? item.wind.speed : item.wind.speed * 3.6,
+                        humidity: item.main.humidity,
+                        pop: item.pop ?? 0,
+                        moonrise: undefined,
+                        moonset: undefined
+                    };
                 } else {
                     dailyMap[day].min = Math.min(dailyMap[day].min, item.main.temp_min);
                     dailyMap[day].max = Math.max(dailyMap[day].max, item.main.temp_max);
+                    // Use max pop/wind
+                    dailyMap[day].pop = Math.max(dailyMap[day].pop, item.pop ?? 0);
+                    dailyMap[day].windSpeed = Math.max(dailyMap[day].windSpeed, unit === 'imperial' ? item.wind.speed : item.wind.speed * 3.6);
+                    // Prioritize Rain icon/condition if present in the day
+                    if (icon === 'rain' || icon === 'lightning' || icon === 'snow') {
+                        dailyMap[day].icon = icon;
+                        dailyMap[day].condition = condition;
+                    }
                 }
             });
 
-            daily = Object.keys(dailyMap).map(day => ({
-                day,
-                min: dailyMap[day].min,
-                max: dailyMap[day].max,
-                icon: dailyMap[day].icon
+            daily = Object.values(dailyMap).map(d => ({
+                ...d,
+                pop: Math.round(d.pop * 100)
             }));
         }
 
@@ -304,7 +350,42 @@ export async function getCurrentWeather(city: string, unit: 'metric' | 'imperial
         // UV Index
         const uvIndex = oneCallData?.current?.uvi ?? 0;
         // Moon Phase (daily[0] is today)
-        const moonPhase = oneCallData?.daily?.[0]?.moon_phase ?? getMoonPhase(new Date()); // 0..1 (Real API or Calc Fallback)
+        let moonPhase = oneCallData?.daily?.[0]?.moon_phase ?? getMoonPhase(new Date()); // 0..1
+        let moonriseTS = oneCallData?.daily?.[0]?.moonrise;
+        let moonsetTS = oneCallData?.daily?.[0]?.moonset;
+
+        // 5. Astronomy / Day Summary (If One Call daily didn't provide moonrise/set)
+        if (!moonriseTS || !moonsetTS) {
+            try {
+                const dateStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+                const astroRes = await fetch(
+                    `https://api.openweathermap.org/data/3.0/onecall/day_summary?lat=${lat}&lon=${lon}&date=${dateStr}&appid=${apiKey}&units=${unit}`,
+                    { cache: 'no-store' }
+                );
+
+                if (astroRes.ok) {
+                    const astroData = await astroRes.json();
+                    // day_summary structure: { moon: { rise: "2024-01-01", set: "..." }, ... }?
+                    // Or { moonrise: { time: unix } }?
+                    // Official Docs: 
+                    // "moon": { "rise": "2024-06-18T20:23:00+00:00", "set": "2024-06-19T05:23:00+00:00", ... }
+                    // They are ISO strings in day_summary.
+
+                    if (astroData?.moon?.rise) {
+                        moonriseTS = new Date(astroData.moon.rise).getTime() / 1000;
+                    }
+                    if (astroData?.moon?.set) {
+                        moonsetTS = new Date(astroData.moon.set).getTime() / 1000;
+                    }
+                    // Also update moonPhase if available and we don't have it
+                    if (astroData?.moon?.phase !== undefined) {
+                        moonPhase = astroData.moon.phase;
+                    }
+                }
+            } catch (e) {
+                console.warn("Astro fetch failed", e);
+            }
+        }
 
         return {
             temp: currentData.main.temp,
@@ -319,6 +400,8 @@ export async function getCurrentWeather(city: string, unit: 'metric' | 'imperial
             pressure: currentData.main.pressure,
             uvIndex: uvIndex, // Real UV
             moonPhase: moonPhase, // Real Moon Phase
+            moonrise: moonriseTS ? formatLocalTime(moonriseTS, timezoneOffset, { hour: '2-digit', minute: '2-digit' }) : undefined,
+            moonset: moonsetTS ? formatLocalTime(moonsetTS, timezoneOffset, { hour: '2-digit', minute: '2-digit' }) : undefined,
             visibility: currentData.visibility ? parseFloat((currentData.visibility / 1000).toFixed(1)) : 10,
 
             sunrise: formatLocalTime(currentData.sys.sunrise, timezoneOffset, { hour: '2-digit', minute: '2-digit' }),
@@ -328,6 +411,8 @@ export async function getCurrentWeather(city: string, unit: 'metric' | 'imperial
             airQuality: airQuality,
             hourly: hourly,
             daily: daily,
+            lat: currentData.coord.lat,
+            lon: currentData.coord.lon,
         };
 
     } catch (error) {
@@ -335,5 +420,3 @@ export async function getCurrentWeather(city: string, unit: 'metric' | 'imperial
         throw error; // Re-throw to be handled by caller
     }
 }
-
-

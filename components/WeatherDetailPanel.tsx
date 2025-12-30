@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
-
+import React from 'react';
 import {
     X, Wind, Droplets, Sun, Eye, Gauge, Cloud, Activity,
     Sunrise as SunriseIcon, Moon, Info
@@ -9,502 +8,450 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { WeatherData } from '@/lib/weather';
 import { useUnit } from '@/components/UnitProvider';
+import { MoonPhaseVisual } from './MoonPhaseVisual';
+import SunCycle from './SunCycle';
+import { getMoonTimes } from '@/utils/astronomy';
+import { getMoonTimeline } from '@/lib/moonTimeline';
 
-// Types of details we support (Extended)
-export type DetailType = 'uv' | 'wind' | 'moon' | 'humidity' | 'visibility' | 'pressure' | 'clouds' | 'sunrise' | 'feelsLike' | 'aqi' | 'temp';
+// Types of details
+export type DetailType = 'uv' | 'wind' | 'moon' | 'humidity' | 'visibility' | 'pressure' | 'clouds' | 'sunrise' | 'feelsLike' | 'airQuality' | 'average';
 
+// ... (props interface remains same)
 interface WeatherDetailPanelProps {
     type: DetailType;
     data: WeatherData;
     onClose: () => void;
     onNext: () => void;
     onPrev: () => void;
-    isMorning: boolean;
-    isAfternoon: boolean;
 }
 
-// Helper to interpolate between two hourly points
-const interpolate = (start: number, end: number, factor: number) => {
-    return start + (end - start) * factor;
+// --- 1. Helper Functions ---
+const parseTimeStr = (timeStr: string | undefined): number | null => {
+    if (!timeStr) return null;
+    const [t, period] = timeStr.split(' ');
+    if (!t || !period) return null;
+    const [h, m] = t.split(':').map(Number);
+    let hours = h;
+    if (period === 'PM' && h !== 12) hours += 12;
+    if (period === 'AM' && h === 12) hours = 0;
+    return hours * 60 + m;
 };
 
-// Formatting Helper
-const formatHour = (offset: number) => {
+const getCityTimeMins = (timezone: number) => {
     const now = new Date();
-    now.setHours(now.getHours() + offset);
-    return now.toLocaleTimeString([], { hour: 'numeric' });
+    const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const cityTime = new Date(utcMs + (timezone * 1000));
+    return (cityTime.getHours() * 60) + cityTime.getMinutes();
 };
 
-// Generic Gauge/Graph Helpers
-const getUVLevel = (uv: number) => {
-    if (uv <= 2) return { label: 'Low', color: 'bg-green-500', advice: "No protection needed." };
-    if (uv <= 5) return { label: 'Moderate', color: 'bg-yellow-500', advice: "Use sun protection." };
-    if (uv <= 7) return { label: 'High', color: 'bg-orange-500', advice: "Seek shade, wear sunscreen." };
-    if (uv <= 10) return { label: 'Very High', color: 'bg-red-500', advice: "Avoid midday sun." };
-    return { label: 'Extreme', color: 'bg-purple-500', advice: "Stay indoors." };
-};
+import { useTimeTheme } from '@/components/ui/TimeTheme';
 
-const getAQILabel = (aqi: number) => {
-    switch (aqi) {
-        case 1: return { label: "Good", desc: "Air quality is satisfactory." };
-        case 2: return { label: "Fair", desc: "Air quality is acceptable." };
-        case 3: return { label: "Moderate", desc: "Sensitive groups may affect." };
-        case 4: return { label: "Poor", desc: "Health effects possible." };
-        case 5: return { label: "Very Poor", desc: "Health warnings." };
-        default: return { label: "Unknown", desc: "" };
-    }
-};
-
-export function WeatherDetailPanel({ type, data, onClose, onNext, onPrev, isMorning, isAfternoon }: WeatherDetailPanelProps) {
+export function WeatherDetailPanel({ type, data, onClose, onNext, onPrev }: WeatherDetailPanelProps) {
     const { unit } = useUnit();
-    // Timeline State: 0 (Now) to 24 (Next 24h)
-    const [sliderValue, setSliderValue] = useState(0);
+    const { isMorning, isAfternoon } = useTimeTheme();
+    const currentMins = getCityTimeMins(data.timezone);
+    const currentUv = data.uvIndex;
 
-    // Derived Data based on Slider
-    const currentHourIndex = Math.floor(sliderValue);
-    const nextHourIndex = Math.min(currentHourIndex + 1, data.hourly.length - 1);
-    const fraction = sliderValue - currentHourIndex;
+    // State for accurate moon times REMOVED
+    // Fetch Moon Times on Mount REMOVED
 
-    const currentHourData = data.hourly[currentHourIndex] || data.hourly[0];
-    const nextHourData = data.hourly[nextHourIndex] || data.hourly[data.hourly.length - 1];
+    // Dynamic BG
+    React.useEffect(() => {
+        const rise = parseTimeStr(data.sunrise) ?? 360;
+        const set = parseTimeStr(data.sunset) ?? 1080;
+        let grad = 'linear-gradient(to top, #0f2027, #2c5364)';
+        if (currentMins >= rise - 60 && currentMins < rise) grad = 'linear-gradient(to top, #f83600, #f9d423)';
+        else if (currentMins >= rise && currentMins < rise + 60) grad = 'linear-gradient(to top, #f83600, #f9d423)';
+        else if (currentMins >= rise + 60 && currentMins < set - 60) grad = 'linear-gradient(to top, #2980b9, #ffffff)';
+        else if (currentMins >= set - 60 && currentMins < set + 60) grad = 'linear-gradient(to top, #ff512f, #dd2476)';
+        document.documentElement.style.setProperty('--bg-gradient', grad);
+    }, [currentMins, data.sunrise, data.sunset]);
 
-    // Interpolated Metrics
-    const iTemp = interpolate(currentHourData?.temp ?? 0, nextHourData?.temp ?? 0, fraction);
-    const iFeelsLike = interpolate(currentHourData?.feelsLike ?? 0, nextHourData?.feelsLike ?? 0, fraction);
-    const iPressure = interpolate(currentHourData?.pressure ?? 1013, nextHourData?.pressure ?? 1013, fraction);
-    const iWindSpeed = interpolate(currentHourData?.windSpeed ?? 0, nextHourData?.windSpeed ?? 0, fraction);
-    const iWindDeg = interpolate(currentHourData?.windDeg ?? 0, nextHourData?.windDeg ?? 0, fraction);
-    const iUv = interpolate(currentHourData?.uvIndex ?? 0, nextHourData?.uvIndex ?? 0, fraction);
-    const iHumidity = interpolate(currentHourData?.humidity ?? 0, nextHourData?.humidity ?? 0, fraction);
-    const iClouds = interpolate(currentHourData?.clouds ?? 0, nextHourData?.clouds ?? 0, fraction);
+    const cardStyle = {
+        background: 'rgba(255,255,255,0.15)',
+        backdropFilter: 'blur(20px)',
+        border: '1px solid rgba(255,255,255,0.25)',
+        borderRadius: '24px',
+        color: 'white',
+        overflow: 'hidden',
+        position: 'relative' as const
+    };
 
-
-    // Theme Colors
-    const textColor = isMorning || isAfternoon ? 'text-black' : 'text-white';
-
-    // Render Content based on Type
     const renderContent = () => {
         switch (type) {
             case 'uv':
-                const uvInfo = getUVLevel(iUv);
+                // ... (existing implementation)
+                const uv = Math.round(data.uvIndex);
+                let uvLabel =
+                    uv <= 2 ? "Low – Safe to stay outside" :
+                        uv <= 5 ? "Moderate – Wear sunglasses" :
+                            uv <= 7 ? "High – Use sunscreen" :
+                                uv <= 10 ? "Very High – Avoid long sun exposure" :
+                                    "Extreme – Stay indoors";
                 return (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col h-full items-center">
-                        <div className="flex flex-col items-center mb-6">
-                            <span className="text-7xl font-thin">{Math.round(iUv)}</span>
-                            <span className={`text-xl font-medium mt-2 px-4 py-1 rounded-full ${isMorning || isAfternoon ? 'bg-black/10' : 'bg-white/10'}`}>{uvInfo.label}</span>
-                            <p className="mt-4 text-center opacity-70 max-w-xs">{uvInfo.advice}</p>
-                        </div>
-                        {/* Hourly UV Curve */}
-                        <div className="flex-1 w-full relative min-h-[150px]">
-                            <svg viewBox="0 0 300 100" className="w-full h-full overflow-visible">
-                                <defs>
-                                    <linearGradient id="uvGradient" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stopColor="#FB923C" stopOpacity="0.8" />
-                                        <stop offset="100%" stopColor="#FB923C" stopOpacity="0" />
-                                    </linearGradient>
-                                </defs>
-                                {(() => {
-                                    const points = data.hourly.slice(0, 12).map((h, i) => {
-                                        const x = (i / 11) * 300;
-                                        const y = 100 - ((h.uvIndex ?? 0) / 10) * 100; // Scale 0-10
-                                        return `${x},${y}`;
-                                    }).join(' ');
-                                    return (
-                                        <>
-                                            <polygon points={`0,100 ${points} 300,100`} fill="url(#uvGradient)" opacity="0.4" />
-                                            <polyline points={points} fill="none" stroke="#FB923C" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-                                        </>
-                                    );
-                                })()}
-                                {/* Current Time Marker */}
-                                {(() => {
-                                    const idx = Math.min(sliderValue, 11);
-                                    const x = (idx / 11) * 300;
-                                    const y = 100 - (iUv / 10) * 100;
-                                    return <circle cx={x} cy={y} r="6" fill="#FB923C" stroke="white" strokeWidth="2" />;
-                                })()}
-                            </svg>
-                        </div>
-                    </motion.div>
+                    <div className="flex flex-col items-center justify-center h-full">
+                        <motion.span
+                            initial={{ scale: 0.7, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                            className="text-7xl font-thin"
+                        >
+                            {uv}
+                        </motion.span>
+                        <p className="opacity-80 mt-2">UV Index</p>
+                        <p className="text-sm opacity-70 mt-3 text-center">{uvLabel}</p>
+                    </div>
                 );
 
-            case 'wind':
-                const displaySpeed = unit === 'C' ? Math.round(iWindSpeed * 3.6) : Math.round(iWindSpeed);
-                const displayUnit = unit === 'C' ? 'km/h' : 'mph';
+            case 'airQuality': {
+                const aqi = data.airQuality;
+                let label = "";
+                let msg = "";
+                if (aqi <= 1) { label = "Good"; msg = "Air quality is considered satisfactory, and air pollution poses little or no risk."; }
+                else if (aqi === 2) { label = "Fair"; msg = "Air quality is acceptable; however, for some pollutants there may be a moderate health concern."; }
+                else if (aqi === 3) { label = "Moderate"; msg = "Members of sensitive groups may experience health effects. The general public is not likely to be affected."; }
+                else if (aqi === 4) { label = "Poor"; msg = "Everyone may begin to experience health effects; members of sensitive groups may experience more serious health effects."; }
+                else { label = "Very Poor"; msg = "Health warnings of emergency conditions. The entire population is more likely to be affected."; }
+
+                // User asked for specific ranges if value is 0-500. 
+                // However, OpenWeatherMap returns 1-5 index. 
+                // If the user INTENDS raw AQI, we might need a different API field?
+                // lib/weather.ts shows `pollutionData?.list?.[0]?.main?.aqi` which works on 1-5 scale for OWM.
+                // But user provided "0-50" logic. This suggests US AQI?
+                // I'll stick to OWM 1-5 scale mapping to user's text intents as best as possible or default to OWM descriptions.
+                // User said: "AQI <= 50 -> Good". This implies 0-500 scale.
+                // Assuming OWM returns 1-5, I should map 1->Good, 2->Fair (treated as Moderate), 3->Moderate (treated as Sensitive), 4->Poor (Unhealthy), 5->Very Poor (Hazardous).
+
+                let userLabel = "Good";
+                let userMsg = "Safe to breathe.";
+                if (aqi === 1) { userLabel = "Good – safe to breathe"; userMsg = "Air quality is satisfactory."; }
+                else if (aqi === 2) { userLabel = "Moderate – acceptable air"; userMsg = "Good for most, sensitive groups should be aware."; }
+                else if (aqi === 3) { userLabel = "Unhealthy for Sensitive"; userMsg = "Sensitive groups should limit outdoor activity."; }
+                else if (aqi === 4) { userLabel = "Unhealthy air"; userMsg = "Everyone may begin to experience health effects."; }
+                else { userLabel = "Hazardous"; userMsg = "Health warnings of emergency conditions."; }
 
                 return (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center">
-                        <span className="text-7xl font-thin mb-1">{displaySpeed}<span className="text-3xl ml-2">{displayUnit}</span></span>
-                        <span className="text-lg opacity-70 mb-8 capitalize">{iWindSpeed > 15 ? 'Windy' : (iWindSpeed > 5 ? 'Breezy' : 'Calm')}</span>
-                        {/* Compass */}
-                        <div className="relative w-64 h-64 border-4 border-current opacity-80 rounded-full flex items-center justify-center mb-8">
-                            {[0, 45, 90, 135, 180, 225, 270, 315].map(d => (
-                                <div key={d} className="absolute w-1 h-3 bg-current" style={{ transform: `rotate(${d}deg) translateY(-120px)` }} />
-                            ))}
-                            <span className="absolute top-4 text-xs font-bold">N</span>
-                            <span className="absolute bottom-4 text-xs font-bold">S</span>
-                            <span className="absolute left-4 text-xs font-bold">W</span>
-                            <span className="absolute right-4 text-xs font-bold">E</span>
-                            {/* Needle */}
-                            <div className="w-2 h-36 bg-red-500 rounded-full origin-center shadow-lg transition-transform duration-75 ease-linear" style={{ transform: `rotate(${iWindDeg}deg)` }}>
-                                <div className="w-4 h-4 rounded-full bg-white border-2 border-red-500 absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                    <div className="flex flex-col items-center justify-center h-full text-center px-4">
+                        <motion.span
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ type: "spring", stiffness: 200 }}
+                            className="text-8xl font-thin tracking-tighter"
+                        >
+                            {aqi}
+                        </motion.span>
+                        <p className="text-lg font-medium mt-2 opacity-90">{userLabel}</p>
+                        <p className="text-sm opacity-70 mt-4 max-w-xs">{userMsg}</p>
+                    </div>
+                );
+            }
+
+            case 'clouds': {
+                const c = data.clouds;
+                let desc = "Clear";
+                if (c <= 20) desc = "Clear skies";
+                else if (c <= 50) desc = "Partly Cloudy"; // User said 21-50 -> Partly, wait user said 21-40 Light, 41-70 Partly
+                else if (c <= 80) desc = "Mostly Cloudy";
+                else desc = "Overcast";
+
+                // Adjusting to match user request strictly:
+                // 0–20 → "Clear skies"
+                // 21–50 → "Partly Cloudy" (User said 21-50 in prompt step 2 case clouds?)
+                // Actually prompt says: 
+                // 0–20 → Clear
+                // 21–50 → Partly Cloudy
+                // 51–80 → Mostly Cloudy
+                // 81–100 → Overcast
+
+                if (c <= 20) desc = "Clear";
+                else if (c <= 50) desc = "Partly Cloudy";
+                else if (c <= 80) desc = "Mostly Cloudy";
+                else desc = "Overcast";
+
+                return (
+                    <div className="flex flex-col items-center justify-center h-full">
+                        <motion.span
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ type: "spring", stiffness: 200 }}
+                            className="text-8xl font-thin tracking-tighter"
+                        >
+                            {c}%
+                        </motion.span>
+                        <p className="text-xl font-medium mt-2 opacity-90">{desc}</p>
+                    </div>
+                );
+            }
+
+            case 'average': {
+                const avg = Math.round((data.high + data.low) / 2);
+                return (
+                    <div className="flex flex-col items-center justify-center h-full">
+                        <motion.span
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ type: "spring", stiffness: 200 }}
+                            className="text-8xl font-thin tracking-tighter"
+                        >
+                            {avg}°
+                        </motion.span>
+                        <p className="text-lg opacity-80 mt-2">Daily average temperature</p>
+                    </div>
+                );
+            }
+
+            // ... cases for moon, sunrise, wind, humidity, pressure, visibility, feelsLike ...
+            case 'moon': {
+                // ... (keep existing moon logic)
+                // 1. Timeline Logic
+                const timeline = React.useMemo(() => getMoonTimeline(data.lat, data.lon), [data.lat, data.lon]);
+                const [selectedIdx, setSelectedIdx] = React.useState(0);
+                const currentSelection = timeline[selectedIdx];
+
+                // 2. Computed Props for Big Moon
+                const phase = currentSelection.phase;
+                // Illumination
+                const illum = 1 - Math.abs((phase - 0.5) * 2);
+                const percent = Math.round(illum * 100);
+
+                let pName = 'New Moon';
+                if (phase > 0 && phase < 0.25) pName = 'Waxing Crescent';
+                else if (phase === 0.25) pName = 'First Quarter';
+                else if (phase > 0.25 && phase < 0.5) pName = 'Waxing Gibbous';
+                else if (phase === 0.5) pName = 'Full Moon';
+                else if (phase > 0.5 && phase < 0.75) pName = 'Waning Gibbous';
+                else if (phase === 0.75) pName = 'Last Quarter';
+                else if (phase > 0.75 && phase < 1) pName = 'Waning Crescent';
+
+                const { moonrise, moonset } = getMoonTimes(data.lat, data.lon, currentSelection.date);
+
+                const formatTime = (t: number | null) =>
+                    t ? new Date(t * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--";
+
+                const displayRise = formatTime(moonrise);
+                const displaySet = formatTime(moonset);
+
+                const mRise = parseTimeStr(displayRise);
+                const mSet = parseTimeStr(displaySet);
+
+                let isMoonUp = true;
+                if (selectedIdx === 0 && mRise !== null && mSet !== null) {
+                    if (mRise < mSet) isMoonUp = currentMins >= mRise && currentMins <= mSet;
+                    else isMoonUp = currentMins >= mRise || currentMins <= mSet;
+                } else {
+                    isMoonUp = true;
+                }
+
+                return (
+                    <div className="h-full flex flex-col overflow-y-auto overscroll-contain">
+                        <div className="flex flex-col items-center justify-center shrink-0 min-h-[350px] relative">
+                            <MoonPhaseVisual phase={phase} lat={data.lat} isUp={isMoonUp} className="w-56 h-56" />
+
+                            <h2 className="text-3xl font-light mt-8 text-center">{pName}</h2>
+                            <p className="text-sm opacity-60 mt-2">Illumination {percent}%</p>
+                            {selectedIdx === 0 && !isMoonUp && <span className="mt-2 text-xs font-bold border border-white/20 px-2 py-1 rounded">Below Horizon</span>}
+                        </div>
+
+                        <div className="relative w-full mt-6">
+                            <div className="w-full grid grid-cols-7 gap-0 justify-items-center items-center pointer-events-auto select-none">
+                                {timeline.map((m, i) => (
+                                    <div
+                                        key={i}
+                                        onClick={() => setSelectedIdx(i)}
+                                        className="flex flex-col items-center justify-center cursor-pointer w-[44px] min-w-[44px]
+                                        transition-transform duration-300 ease-out hover:-translate-y-2"
+                                    >
+                                        <div className="day w-[36px] h-[36px] flex items-center justify-center relative shrink-0">
+                                            <div
+                                                className={`moon w-full h-full rounded-full overflow-hidden relative bg-black box-border transition-all duration-300
+                                                ${i === selectedIdx
+                                                        ? "ring-2 ring-white scale-110 shadow-[0_0_14px_rgba(255,255,255,0.8)]"
+                                                        : "opacity-70 hover:opacity-100 hover:scale-105"}`}
+                                            >
+                                                <div
+                                                    className="absolute inset-0 bg-white"
+                                                    style={{
+                                                        clipPath: `circle(${m.fraction * 50}% at ${m.waxing ? "70%" : "30%"
+                                                            } 50%)`
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <span className="text-[9px] uppercase font-bold tracking-wider text-white opacity-90 mt-2 whitespace-nowrap">
+                                            {m.label}
+                                        </span>
+                                    </div>
+                                ))}
                             </div>
                         </div>
-                    </motion.div>
-                );
 
-            case 'moon':
-                // Interpolate Moon Phase (approx 1/29.5 change per day)
-                const basePhase = data.moonPhase ?? 0;
-                // Add tiny shift for "smooth change" effect over 24h (sliderValue)
-                // 1 cycle = 29.5 days. 1 day = 1/29.5. 24h slider = +1 day roughly.
-                const phaseShift = (sliderValue / 24) * (1 / 29.5);
-                const phasePercent = (basePhase + phaseShift) % 1;
-
-                return (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center space-y-8">
-                        {/* Moon Visual */}
-                        <div className="relative w-56 h-56 rounded-full bg-slate-900 overflow-hidden shadow-2xl border border-white/20">
-                            <div className="absolute inset-0 bg-gray-200 opacity-90" />
-                            {/* Shadow Plane Mask Logic Simplified for Panel */}
-                            <div className="absolute inset-0 bg-black mix-blend-multiply transition-transform duration-300"
-                                style={{
-                                    transform: `translateX(${(phasePercent - 0.5) * 200}%) scale(1.1)`,
-                                    filter: 'blur(8px)'
-                                }}
-                            />
+                        <div className="mt-8 mb-8">
+                            <div className="p-4 grid grid-cols-2 gap-4">
+                                <div className="bg-white/10 rounded-xl p-4 flex flex-col items-center backdrop-blur-md transition-all">
+                                    <span className="text-xs uppercase opacity-50 mb-1">{selectedIdx === 0 ? "Moonrise" : "Rise"}</span>
+                                    <span className="text-lg">{displayRise}</span>
+                                </div>
+                                <div className="bg-white/10 rounded-xl p-4 flex flex-col items-center backdrop-blur-md">
+                                    <span className="text-xs uppercase opacity-50 mb-1">Moonset</span>
+                                    <span className="text-lg">{displaySet}</span>
+                                </div>
+                                <div className="bg-white/10 rounded-xl p-4 flex flex-col items-center backdrop-blur-md">
+                                    <span className="text-xs uppercase opacity-50 mb-1">Next Full</span>
+                                    <span className="text-lg">{Math.round((0.5 - phase + (phase > 0.5 ? 1 : 0)) * 29.5)} Days</span>
+                                </div>
+                                <div className="bg-white/10 rounded-xl p-4 flex flex-col items-center backdrop-blur-md">
+                                    <span className="text-xs uppercase opacity-50 mb-1">Distance</span>
+                                    <span className="text-lg">384,400 km</span>
+                                </div>
+                            </div>
                         </div>
-                        <div className="text-center">
-                            <h3 className="text-3xl font-light">{Math.round(phasePercent * 100)}%</h3>
-                            <p className="opacity-60">Illumination</p>
-                            <p className="text-sm mt-4 opacity-70">Next Full Moon: {Math.round((0.5 - phasePercent + (phasePercent > 0.5 ? 1 : 0)) * 29.5)} Days</p>
-                        </div>
-                    </motion.div>
+                    </div>
                 );
-
-            case 'humidity':
-                return (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center flex-1">
-                        <span className="text-8xl font-thin mb-4">{Math.round(iHumidity)}%</span>
-                        <p className="text-xl opacity-70">Dew Point: {Math.round(iTemp - ((100 - iHumidity) / 5))}°</p>
-                        <p className="text-sm opacity-50 mt-8 max-w-xs text-center">
-                            {iHumidity > 60 ? "The air feels muggy." : "Comfortable humidity levels."}
-                        </p>
-                        <div className="w-full max-w-xs h-3 bg-white/10 rounded-full mt-12 overflow-hidden">
-                            <motion.div className="h-full bg-blue-500" animate={{ width: `${iHumidity}%` }} transition={{ type: "spring", stiffness: 100 }} />
-                        </div>
-                    </motion.div>
-                );
-
-            case 'visibility':
-                return (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center flex-1">
-                        <span className="text-8xl font-thin mb-4">{data.visibility} <span className="text-3xl">km</span></span>
-                        <p className="text-lg opacity-70">Fog Risk: {data.visibility < 1 ? 'High' : 'Low'}</p>
-                        <p className="text-sm opacity-50 mt-8 max-w-xs text-center">
-                            {data.visibility >= 10 ? "Maximum visibility. Clear conditions." : "Reduced visibility due to haze or fog."}
-                        </p>
-                    </motion.div>
-                );
-
-            case 'pressure':
-                const pressureTrend = data.hourly[3] ? (data.hourly[3].pressure > data.pressure ? "Rising" : "Falling") : "Steady";
-                // Physics-Correct Range: 980 - 1045
-                const pMin = 980;
-                const pMax = 1045;
-                const clampedP = Math.min(pMax, Math.max(pMin, iPressure));
-                const pAngle = -90 + ((clampedP - pMin) / (pMax - pMin)) * 180;
-
-                return (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center">
-                        <h3 className="text-6xl font-thin mb-2">{Math.round(iPressure)}</h3>
-                        <span className="text-lg opacity-60 mb-8">hPa &bull; {pressureTrend}</span>
-                        {/* Barometer */}
-                        <div className="relative w-60 h-60 rounded-full border-[10px] border-white/5 flex items-center justify-center shadow-inner bg-white/5">
-                            <div className="absolute inset-2 rounded-full border border-dashed border-white/20 opacity-50" />
-                            <div className="w-1.5 h-28 bg-red-500 origin-bottom absolute bottom-1/2 left-1/2 -translate-x-1/2 rounded-full shadow-lg transition-transform duration-75 ease-linear"
-                                style={{ transform: `rotate(${pAngle}deg)` }}
-                            />
-                            <div className="w-4 h-4 bg-white rounded-full absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 shadow-md z-10" />
-                        </div>
-                    </motion.div>
-                );
+            }
 
             case 'sunrise':
-                // 1. Parse Time Helper (Local scoped for this case)
-                const parseTime = (timeStr: string) => {
-                    const [t, period] = timeStr.split(' ');
-                    const [h, m] = t.split(':').map(Number);
-                    let hours = h;
-                    if (period === 'PM' && h !== 12) hours += 12;
-                    if (period === 'AM' && h === 12) hours = 0;
-                    return hours * 60 + m; // Minutes from midnight
-                };
-
-                // 2. Get Today's Data
-                const sunriseMins = parseTime(data.sunrise);
-                const sunsetMins = parseTime(data.sunset);
-
-                // 3. Current Simulated Time (Slider)
-                // sliderValue is "hours from now". 
-                // We need absolute minutes to compare with sunrise/sunset.
-                const now = new Date(); // Using device time as base anchor, same as slider logic
-                const currentTotalMins = (now.getHours() * 60 + now.getMinutes()) + (sliderValue * 60);
-                // Normalize to 24h cycle effectively? Or just linear day?
-                // For simplicity, let's treat everything as absolute minutes from today's midnight.
-                // If slider goes into tomorrow, we just add minutes.
-
-                // Effective Day Boundaries for Visualization
-                // We want the curve to strictly represent Sunrise -> Sunset.
-                const dayLength = sunsetMins - sunriseMins;
-                const sunProgress = Math.max(0, Math.min(1, (currentTotalMins - sunriseMins) / dayLength));
-
-                // 4. Bezier Curve Math (Quadratic)
-                // Start (0, 100) -> Top (150, 0) -> End (300, 100)  (SVG Space: 300 wide, 100 high? Let's tune)
-                // Actually let's use a nice wide arc.
-                // P0(Start) = {x: 20, y: 80}
-                // P1(Control) = {x: 150, y: -20} (Negative to pull arc up)
-                // P2(End) = {x: 280, y: 80}
-
-                const P0 = { x: 30, y: 120 };
-                const P1 = { x: 150, y: -30 };
-                const P2 = { x: 270, y: 120 };
-
-                const t = sunProgress;
-                const bx = (1 - t) * (1 - t) * P0.x + 2 * (1 - t) * t * P1.x + t * t * P2.x;
-                const by = (1 - t) * (1 - t) * P0.y + 2 * (1 - t) * t * P1.y + t * t * P2.y;
-
-                // Dynamic Horizon Line (Dashed)
-                const horizonY = P0.y;
-
-                const isDayTime = currentTotalMins >= sunriseMins && currentTotalMins <= sunsetMins;
-
-                // 5. Background Dynamic Darkening (Subtle)
-                // Darken if close to sunset or night
-                // We can inject a style into the container or just use an overlay here.
-                // Let's use a large glow overlay behind the sun.
-
-                // Format times for display label
-                const timeLabel = (() => {
-                    const totalM = Math.floor(currentTotalMins) % (24 * 60);
-                    const h = Math.floor(totalM / 60);
-                    const m = Math.floor(totalM % 60);
-                    const period = h >= 12 ? 'PM' : 'AM';
-                    const displayH = h % 12 || 12;
-                    const displayM = m.toString().padStart(2, '0');
-                    return `${displayH}:${displayM} ${period}`;
-                })();
-
                 return (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-between h-full py-4 relative overflow-hidden">
-
-                        {/* Dynamic Background Overlay for "Evening" feel */}
-                        <motion.div
-                            className="absolute inset-0 z-0 pointer-events-none transition-colors duration-1000"
-                            animate={{
-                                background: sunProgress > 0.8 ? 'linear-gradient(to bottom, rgba(0,0,0,0.4), transparent)' : 'linear-gradient(to bottom, rgba(255,255,255,0), transparent)'
-                            }}
-                        />
-
-                        {/* Top Info */}
-                        <div className="text-center z-10">
-                            <span className="text-5xl font-light tracking-tight">{data.sunrise}</span>
-                            <span className="block text-sm mt-1 opacity-60 uppercase tracking-wide">Sunrise</span>
-                        </div>
-
-                        {/* Animated Sun Graph */}
-                        <div className="relative w-full h-[180px] flex items-end justify-center z-10">
-                            <svg viewBox="0 0 300 150" className="w-full h-full overflow-visible">
-                                <defs>
-                                    <linearGradient id="sunPathGradient" x1="0" y1="0" x2="1" y2="0">
-                                        <stop offset="0%" stopColor="#FDB813" stopOpacity="0.3" />
-                                        <stop offset="50%" stopColor="#FDB813" stopOpacity="1" />
-                                        <stop offset="100%" stopColor="#FDB813" stopOpacity="0.3" />
-                                    </linearGradient>
-                                    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-                                        <feGaussianBlur stdDeviation="4" result="coloredBlur" />
-                                        <feMerge>
-                                            <feMergeNode in="coloredBlur" />
-                                            <feMergeNode in="SourceGraphic" />
-                                        </feMerge>
-                                    </filter>
-                                </defs>
-
-                                {/* Horizon Line */}
-                                <line x1="0" y1={horizonY} x2="300" y2={horizonY} stroke="white" strokeWidth="1" strokeDasharray="4 4" opacity="0.2" />
-
-                                {/* Path Curve (Dashed & Low Opacity) */}
-                                <path
-                                    d={`M ${P0.x} ${P0.y} Q ${P1.x} ${P1.y} ${P2.x} ${P2.y}`}
-                                    fill="none"
-                                    stroke="white"
-                                    strokeWidth="2"
-                                    strokeDasharray="6 6"
-                                    opacity="0.2"
-                                />
-
-                                {/* Active Path (filled up to sun position) - Optional, maybe just the sun is enough? Apple weather just has the sun. */}
-
-                                {/* The Sun */}
-                                <motion.g
-                                    animate={{ x: bx, y: by }}
-                                    transition={{ type: "spring", stiffness: 100, damping: 20 }}
-                                >
-                                    {/* Sun Glow/Halo */}
-                                    <circle r="20" fill="#FDB813" opacity="0.3" filter="url(#glow)" />
-                                    <circle r="12" fill="#FDB813" opacity="0.6" />
-                                    <circle r="8" fill="#FFF" />
-                                </motion.g>
-                            </svg>
-
-                            {/* Current Time Label Floating near Sun (Optional, or just keep main labels) */}
-                        </div>
-
-                        {/* Bottom Info */}
-                        <div className="text-center z-10 w-full flex justify-between px-8">
-                            <div className="flex flex-col items-center">
-                                <span className="text-xs opacity-50 uppercase">First Light</span>
-                                <span className="text-lg font-medium">{timeLabel}</span>
-                            </div>
-                            <div className="flex flex-col items-center">
-                                <span className="text-xs opacity-50 uppercase">Sunset</span>
-                                <span className="text-lg font-medium">{data.sunset}</span>
-                            </div>
-                        </div>
-                    </motion.div>
+                    <SunCycle
+                        sunrise={data.sunrise}
+                        sunset={data.sunset}
+                        timezone={data.timezone}
+                    />
                 );
 
-            case 'feelsLike':
+            case 'wind': {
+                const speed = Math.round(data.windSpeed);
+                let feeling =
+                    speed < 5 ? "Calm air" :
+                        speed < 15 ? "Light breeze" :
+                            speed < 30 ? "Windy" :
+                                "Strong winds";
                 return (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center flex-1">
-                        <span className="text-8xl font-thin mb-4">{Math.round(iFeelsLike)}°</span>
-                        <p className="text-lg opacity-70 mb-8">Feels {iFeelsLike > iTemp ? 'warmer' : 'cooler'} due to wind/humidity.</p>
-                        <div className="grid grid-cols-2 gap-4 w-full max-w-xs mt-8">
-                            <div className="p-4 bg-white/5 rounded-2xl text-center">
-                                <span className="block text-xs uppercase opacity-50">Wind</span>
-                                <span className="text-xl font-medium">{unit === 'C' ? Math.round(iWindSpeed * 3.6) : Math.round(iWindSpeed)} {unit === 'C' ? 'km/h' : 'mph'}</span>
-                            </div>
-                            <div className="p-4 bg-white/5 rounded-2xl text-center">
-                                <span className="block text-xs uppercase opacity-50">Humidity</span>
-                                <span className="text-xl font-medium">{Math.round(iHumidity)}%</span>
-                            </div>
-                        </div>
-                    </motion.div>
+                    <div className="flex flex-col items-center justify-center h-full">
+                        <motion.span
+                            initial={{ y: 20, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            transition={{ type: "spring", stiffness: 150 }}
+                            className="text-7xl font-thin"
+                        >
+                            {speed}
+                        </motion.span>
+                        <p className="opacity-80 mt-2">km/h Wind</p>
+                        <p className="text-sm opacity-70 mt-3">{feeling}</p>
+                    </div>
                 );
+            }
 
-            case 'clouds':
+            case 'humidity': {
+                const h = data.humidity;
+                let comfort = h < 30
+                    ? "Dry air — may cause dry skin and throat"
+                    : h < 50
+                        ? "Comfortable humidity level"
+                        : h < 70
+                            ? "Slightly humid — air feels heavier"
+                            : "High humidity — sticky and uncomfortable";
                 return (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center flex-1">
-                        <span className="text-8xl font-thin mb-4">{Math.round(iClouds)}%</span>
-                        <p className="text-lg opacity-70">Cloud Cover</p>
-                        <p className="text-sm opacity-50 mt-8 max-w-xs text-center">
-                            {iClouds > 80 ? "Overcast skies." : (iClouds > 20 ? "Partly cloudy." : "Mostly clear skies.")}
-                        </p>
-                        <div className="mt-8 flex gap-2">
-                            <Cloud className="w-12 h-12 opacity-50" />
-                            <Cloud className="w-12 h-12 opacity-80" />
-                            <Cloud className="w-12 h-12 opacity-30" />
-                        </div>
-                    </motion.div>
+                    <div className="flex flex-col items-center justify-center h-full">
+                        <motion.span
+                            initial={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                            className="text-7xl font-thin"
+                        >
+                            {h}%
+                        </motion.span>
+                        <p className="text-center opacity-80 mt-2">Humidity</p>
+                        <p className="text-sm mt-3 opacity-70 text-center max-w-xs">{comfort}</p>
+                    </div>
                 );
-
-            case 'aqi':
-                const aqi = data.airQuality || 1;
-                const aqiInfo = getAQILabel(aqi);
+            }
+            case 'pressure': {
+                const p = Math.round(data.pressure);
+                let trend =
+                    p < 1000 ? "Low pressure – Stormy" :
+                        p < 1020 ? "Normal pressure" :
+                            "High pressure – Clear skies";
                 return (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center flex-1">
-                        <span className="text-8xl font-thin mb-4">{aqi}</span>
-                        <span className={`text-xl font-medium mt-2 px-6 py-1 rounded-full ${isMorning || isAfternoon ? 'bg-black/10' : 'bg-white/10'}`}>{aqiInfo.label}</span>
-                        <p className="mt-8 text-center opacity-70 max-w-xs">{aqiInfo.desc}</p>
-                        <div className="w-full max-w-xs h-2 bg-gradient-to-r from-green-400 via-yellow-400 to-red-500 rounded-full mt-12 relative">
-                            <div className="absolute top-0 w-4 h-4 bg-white border border-black rounded-full shadow-sm -mt-1" style={{ left: `${(aqi / 5) * 100}%` }} />
-                        </div>
-                    </motion.div>
+                    <div className="flex flex-col items-center justify-center h-full">
+                        <motion.span
+                            initial={{ scale: 0.7, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ type: "spring", stiffness: 200 }}
+                            className="text-7xl font-thin"
+                        >
+                            {p}
+                        </motion.span>
+                        <p className="opacity-80 mt-2">hPa Pressure</p>
+                        <p className="text-sm opacity-70 mt-3">{trend}</p>
+                    </div>
                 );
+            }
+            case 'visibility': {
+                const v = Math.round(data.visibility);
+                let label =
+                    v > 10 ? "Clear view" :
+                        v > 5 ? "Moderate visibility" :
+                            "Poor visibility";
+                return (
+                    <div className="flex flex-col items-center justify-center h-full">
+                        <motion.span
+                            initial={{ scale: 0.6, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ type: "spring", stiffness: 180 }}
+                            className="text-7xl font-thin"
+                        >
+                            {v}
+                        </motion.span>
+                        <p className="opacity-80 mt-2">km Visibility</p>
+                        <p className="text-sm opacity-70 mt-3">{label}</p>
+                    </div>
+                );
+            }
+            case 'feelsLike': {
+                const actual = data.temp;
+                const feels = data.feelsLike;
+                const diff = Math.round(feels - actual);
+                const reason = diff > 2
+                    ? "Feels hotter due to heat index (humidity)"
+                    : diff < -2
+                        ? "Feels colder due to wind chill"
+                        : "Feels close to the actual temperature";
+                return (
+                    <div className="flex flex-col items-center justify-center h-full">
+                        <motion.span
+                            initial={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                            className="text-7xl font-thin"
+                        >
+                            {Math.round(feels)}°
+                        </motion.span>
+                        <p className="text-center opacity-80 mt-2">Feels Like</p>
+                        <p className="text-sm mt-3 opacity-70 text-center max-w-xs">{reason}</p>
+                        <p className="text-xs opacity-50 mt-1">Actual: {Math.round(actual)}°</p>
+                    </div>
+                );
+            }
 
             default:
-                return (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center h-full opacity-50">
-                        <Info className="w-16 h-16 mb-4" />
-                        <p>{type} Analysis</p>
-                    </motion.div>
-                );
+                return <div className="flex items-center justify-center h-full opacity-50"><Info className="w-12 h-12" /></div>;
         }
     };
 
+    // ... (rest of wrapper remains same)
     return (
         <AnimatePresence>
             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="absolute inset-0 bg-black/40 backdrop-blur-md"
-                    onClick={onClose}
-                />
-
-                <motion.div
-                    initial={{ scale: 0.85, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.85, opacity: 0 }}
-                    transition={{ type: "spring", stiffness: 320, damping: 22, mass: 0.8 }}
-                    className={`relative w-full max-w-md max-h-[85vh] bg-white/30 backdrop-blur-2xl border border-white/20 shadow-2xl flex flex-col p-6 overflow-y-auto rounded-[32px] ${textColor}`}
-                >
-                    {/* Header */}
-                    <div className="flex items-center justify-between mb-8 shrink-0">
-                        <span className="text-lg font-semibold flex items-center gap-2 capitalize">
-                            {/* Icon Mapping */}
-                            {type === 'uv' && <Sun className="w-5 h-5" />}
-                            {type === 'wind' && <Wind className="w-5 h-5" />}
-                            {type === 'pressure' && <Gauge className="w-5 h-5" />}
-                            {type === 'sunrise' && <SunriseIcon className="w-5 h-5" />}
-                            {type === 'moon' && <Moon className="w-5 h-5" />}
-                            {type === 'humidity' && <Droplets className="w-5 h-5" />}
-                            {type === 'visibility' && <Eye className="w-5 h-5" />}
-                            {type === 'feelsLike' && <Activity className="w-5 h-5" />}
-                            {type === 'clouds' && <Cloud className="w-5 h-5" />}
-                            {type} Details
-                        </span>
-                        <button onClick={onClose} className="p-2 rounded-full bg-black/5 hover:bg-black/10 transition-colors">
-                            <X className="w-5 h-5" />
-                        </button>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+                <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} transition={{ type: "spring", stiffness: 350, damping: 25 }} className={`relative w-full max-w-md h-[80vh] flex flex-col p-6 shadow-2xl ${isMorning || isAfternoon ? 'text-black' : 'text-white'}`} style={cardStyle}>
+                    <div className="flex items-center justify-between mb-6 shrink-0 z-20">
+                        <span className="text-lg font-semibold flex items-center gap-2 capitalize">{type === 'average' ? 'Temperature' : type} Details</span>
+                        <button onClick={onClose} className="p-2 rounded-full bg-white/10 hover:bg-white/20"><X className="w-5 h-5" /></button>
                     </div>
-
-                    {/* Main Content */}
-                    <motion.div
-                        key={type} // Animate content switch
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -20 }}
-                        transition={{ duration: 0.2 }}
-                        className="flex-1 flex flex-col"
-                    >
-                        {renderContent()}
-                    </motion.div>
-
-                    {/* Timeline Slider (Bottom Fixed) */}
-                    <div className="mt-8 pt-4 border-t border-white/10 shrink-0">
-                        <div className="flex justify-between text-xs font-bold uppercase opacity-50 mb-2">
-                            <span>Now</span>
-                            <span>+12h</span>
-                            <span>+24h</span>
-                        </div>
-                        <input
-                            type="range"
-                            min="0"
-                            max="24"
-                            step="0.1"
-                            value={sliderValue}
-                            onChange={(e) => setSliderValue(parseFloat(e.target.value))}
-                            className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-white"
-                        />
-                        <div className="text-center mt-2 text-sm font-medium opacity-60">
-                            {formatHour(sliderValue)}
-                        </div>
-                    </div>
+                    <motion.div className="flex-1 relative z-10 overflow-hidden">{renderContent()}</motion.div>
                 </motion.div>
             </div>
         </AnimatePresence>
     );
-}
 
+}

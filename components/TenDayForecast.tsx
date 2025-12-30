@@ -10,6 +10,14 @@ interface DailyForecast {
     min: number;
     max: number;
     icon: string;
+    condition: string;
+    moonrise?: number;
+    moonset?: number;
+    feelsLike: number;
+    uvIndex: number;
+    windSpeed: number;
+    humidity: number;
+    pop: number;
 }
 
 interface TenDayForecastProps {
@@ -33,6 +41,7 @@ export default function TenDayForecast({ data, currentTemp }: TenDayForecastProp
     const { convert } = useUnit();
     const { isMorning, isAfternoon } = useTimeTheme();
     const [isOpen, setIsOpen] = useState(false);
+    const [selectedDay, setSelectedDay] = useState<DailyForecast | null>(null);
 
     // Calculate global min and max for the bar scaling to keep bars relative to the week's weather
     if (!data || data.length === 0) return null;
@@ -50,10 +59,35 @@ export default function TenDayForecast({ data, currentTemp }: TenDayForecastProp
     // For graphs/bars
     const barBg = isDay ? 'bg-black/10 shadow-black/5' : 'bg-black/20 dark:shadow-black/50';
 
+    const fiveDayData = data.slice(0, 5);
+
+    // Weekly summary
+    const generateWeeklyInsight = () => {
+        const avgMax = fiveDayData.reduce((acc, curr) => acc + curr.max, 0) / 5;
+        const rainDay = fiveDayData.find(d => d.icon.includes('rain'));
+        const cloudDay = fiveDayData.find(d => d.icon.includes('cloud'));
+
+        let insight = "Stable conditions expected this week.";
+        if (rainDay) insight = `Expect rain on ${rainDay.day}, otherwise conditions remain stable.`;
+        else if (avgMax > 25) insight = "Warm and pleasant week ahead, perfect for outdoor activities.";
+        else if (avgMax < 10) insight = "Chilly week ahead, bundle up!";
+        else if (cloudDay) insight = "Cloud cover increases slightly mid-week, but no major disruptions.";
+        return insight;
+    };
+
+    // Daily summary
+    const generateDailyInsight = (day: DailyForecast) => {
+        let insight = `Expect a high of ${convert(day.max)}° and ${day.condition.toLowerCase()} skies.`;
+        if (day.pop > 30) insight += ` There is a ${day.pop}% chance of precipitation.`;
+        else if (day.uvIndex > 6) insight += " Ideally, wear sun protection during midday.";
+        else if (day.windSpeed > 15) insight += " It might feel breezy, especially in the afternoon.";
+        return insight;
+    };
+
     return (
         <>
             <Card
-                onClick={() => setIsOpen(true)}
+                onClick={(e) => { e.stopPropagation(); setIsOpen(true); }}
                 className={`liquid-glass w-full h-full p-6 shadow-2xl flex flex-col border border-white/20 relative overflow-hidden ${textColor} ${morningCardStyles} cursor-pointer hover:scale-[1.02] transition-transform active:scale-95`}
             >
                 {/* Subtle background glow */}
@@ -62,11 +96,11 @@ export default function TenDayForecast({ data, currentTemp }: TenDayForecastProp
                 {/* Header */}
                 <div className="flex items-center gap-2 opacity-80 mb-5 pl-1">
                     <Calendar className={`w-4 h-4 ${iconColor}`} />
-                    <span className={`text-xs font-semibold uppercase tracking-widest drop-shadow-sm ${subTextColor}`}>{data.length}-Day Forecast</span>
+                    <span className={`text-xs font-semibold uppercase tracking-widest drop-shadow-sm ${subTextColor}`}>5-Day Forecast</span>
                 </div>
 
                 <div className="flex flex-col flex-1 justify-between gap-1 pointer-events-none">
-                    {data.slice(0, 7).map((item, index) => { // Show first 7 in compact view
+                    {fiveDayData.map((item, index) => { // Show first 5
                         const isToday = index === 0;
 
                         // Bar calculations
@@ -99,7 +133,7 @@ export default function TenDayForecast({ data, currentTemp }: TenDayForecastProp
                                     </span>
                                     <div className={`flex-1 h-2.5 rounded-full relative overflow-hidden backdrop-blur-sm shadow-inner ${barBg}`}>
                                         <div
-                                            className="absolute top-0 bottom-0 rounded-full bg-gradient-to-r from-emerald-400 via-yellow-300 to-orange-500 shadow-[0_0_12px_rgba(253,186,116,0.6)]"
+                                            className="absolute top-0 bottom-0 rounded-full bg-gradient-to-r from-blue-400 via-green-400 via-yellow-400 to-orange-500 shadow-[0_0_12px_rgba(253,186,116,0.6)]"
                                             style={{
                                                 left: `${leftPct}%`,
                                                 width: `${Math.max(widthPct, 5)}%`
@@ -130,64 +164,177 @@ export default function TenDayForecast({ data, currentTemp }: TenDayForecastProp
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             className="absolute inset-0 bg-black/40 backdrop-blur-md"
-                            onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}
+                            onClick={(e) => { e.stopPropagation(); setIsOpen(false); setSelectedDay(null); }}
                         />
 
                         <motion.div
-                            initial={{ scale: 0.85, opacity: 0 }}
+                            initial={{ scale: 0.95, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.85, opacity: 0 }}
-                            transition={{ type: "spring", stiffness: 320, damping: 22, mass: 0.8 }}
-                            className={`relative w-full max-w-lg max-h-[85vh] bg-white/30 backdrop-blur-2xl border border-white/20 shadow-2xl flex flex-col p-6 overflow-y-auto rounded-[32px] ${textColor}`}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            transition={{ type: "spring", stiffness: 350, damping: 25 }}
+                            className={`relative w-[85vw] max-w-5xl max-h-[85vh] backdrop-blur-[30px] flex flex-col p-8 overflow-hidden rounded-[24px] shadow-2xl ${textColor}`}
+                            style={{
+                                background: 'rgba(255, 255, 255, 0.08)',
+                                border: '1px solid rgba(255, 255, 255, 0.2)',
+                                boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.15)'
+                            }}
                             onClick={(e) => e.stopPropagation()}
                         >
-                            <div className="flex items-center justify-between mb-6 shrink-0">
-                                <span className="text-xl font-semibold flex items-center gap-2 capitalize">
-                                    <Calendar className="w-6 h-6" />
-                                    10-Day Forecast
+                            <div className="flex items-center justify-between mb-6 shrink-0 border-b border-white/10 pb-4">
+                                <span className="text-2xl font-bold flex items-center gap-3 capitalize tracking-tight drop-shadow-sm">
+                                    <div className="p-2 rounded-xl bg-white/10 border border-white/20 shadow-inner">
+                                        <Calendar className={`w-6 h-6 ${iconColor}`} />
+                                    </div>
+                                    5-Day Forecast
                                 </span>
-                                <button onClick={() => setIsOpen(false)} className="p-2 rounded-full bg-black/5 hover:bg-black/10 transition-colors">
+                                <button
+                                    onClick={() => { setIsOpen(false); setSelectedDay(null); }}
+                                    className="p-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 transition-colors"
+                                >
                                     <X className="w-5 h-5" />
                                 </button>
                             </div>
 
-                            <div className="flex flex-col gap-1 w-full">
-                                {data.map((item, index) => {
-                                    const isToday = index === 0;
-                                    const leftPct = ((item.min - globalMin) / totalRange) * 100;
-                                    const widthPct = ((item.max - item.min) / totalRange) * 100;
-                                    let dotLeftPct = 0;
-                                    if (isToday && currentTemp !== undefined) {
-                                        dotLeftPct = ((currentTemp - item.min) / (item.max - item.min)) * 100;
-                                        dotLeftPct = Math.max(0, Math.min(100, dotLeftPct));
-                                    }
+                            <div className="flex items-start gap-8 h-full min-h-0">
+                                {/* Left Column: List */}
+                                <div className={`flex flex-col gap-2 overflow-y-auto transition-all duration-500 ease-spring ${selectedDay ? 'w-2/5 pr-4 border-r border-white/10' : 'w-full'}`}>
+                                    {fiveDayData.map((item, index) => {
+                                        const isToday = index === 0;
+                                        const isSelected = selectedDay === item;
+                                        const leftPct = ((item.min - globalMin) / totalRange) * 100;
+                                        const widthPct = ((item.max - item.min) / totalRange) * 100;
+                                        let dotLeftPct = 0;
+                                        if (isToday && currentTemp !== undefined) {
+                                            dotLeftPct = ((currentTemp - item.min) / (item.max - item.min)) * 100;
+                                            dotLeftPct = Math.max(0, Math.min(100, dotLeftPct));
+                                        }
 
-                                    return (
-                                        <div key={index} className={`grid grid-cols-[4rem_3rem_1fr] items-center gap-4 py-4 border-b last:border-0 border-white/10`}>
-                                            <span className="text-lg font-medium">{isToday ? 'Today' : item.day.slice(0, 3)}</span>
-                                            <div className="flex justify-center scale-110">{getIcon(item.icon)}</div>
-                                            <div className="flex items-center gap-4 w-full">
-                                                <span className="w-8 text-right text-lg opacity-80">{convert(item.min)}°</span>
-                                                <div className="flex-1 h-3 rounded-full relative overflow-hidden bg-black/20">
-                                                    <div
-                                                        className="absolute top-0 bottom-0 rounded-full bg-gradient-to-r from-emerald-400 via-yellow-300 to-orange-500"
-                                                        style={{ left: `${leftPct}%`, width: `${Math.max(widthPct, 5)}%` }}
-                                                    >
-                                                        {isToday && currentTemp !== undefined && (
-                                                            <div className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full border-2 border-white shadow-sm" style={{ left: `${dotLeftPct}%`, transform: `translate(-50%, -50%)` }} />
-                                                        )}
+                                        return (
+                                            <motion.div
+                                                key={index}
+                                                layout
+                                                onClick={() => setSelectedDay(item)}
+                                                whileHover={{ scale: 1.01, backgroundColor: 'rgba(255,255,255,0.08)' }}
+                                                className={`grid items-center gap-4 py-4 px-4 rounded-xl cursor-pointer transition-colors group ${isSelected ? 'bg-white/10 shadow-inner ring-1 ring-white/20' : 'hover:bg-white/5'} ${selectedDay ? 'grid-cols-[4rem_1fr]' : 'grid-cols-[6rem_4rem_1fr]'}`}
+                                            >
+                                                <span className={`${selectedDay ? 'text-lg' : 'text-xl'} font-medium tracking-wide drop-shadow-sm`}>{isToday ? 'Today' : item.day.slice(0, 3)}</span>
+
+                                                {!selectedDay && (
+                                                    <div className="flex justify-center scale-125 drop-shadow-md">
+                                                        {getIcon(item.icon)}
+                                                    </div>
+                                                )}
+
+                                                <div className="flex items-center gap-3 w-full">
+                                                    <span className={`text-right font-medium tabular-nums drop-shadow-sm ${selectedDay ? 'text-base w-6' : 'text-xl w-10 opacity-90'}`}>{convert(item.min)}°</span>
+                                                    <div className={`flex-1 rounded-full relative overflow-hidden bg-black/5 shadow-inner backdrop-blur-sm ${selectedDay ? 'h-2' : 'h-3.5'}`}>
+                                                        <motion.div
+                                                            initial={{ width: 0, opacity: 0 }}
+                                                            animate={{ width: `${Math.max(widthPct, 5)}%`, opacity: 1 }}
+                                                            transition={{ duration: 1, delay: 0.1 * index, ease: "easeOut" }}
+                                                            className={`absolute top-0 bottom-0 rounded-full shadow-sm opacity-90 ${isSelected ? 'bg-gradient-to-r from-blue-400 via-green-400 to-yellow-400 brightness-110' : 'bg-gradient-to-r from-blue-300 via-green-300 via-yellow-300 to-orange-400'}`}
+                                                            style={{ left: `${leftPct}%` }}
+                                                        >
+                                                            {isToday && currentTemp !== undefined && (
+                                                                <div className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full border-[3px] border-white/80 shadow-md z-10" style={{ left: `${dotLeftPct}%`, transform: `translate(-50%, -50%)` }} />
+                                                            )}
+                                                        </motion.div>
+                                                    </div>
+                                                    <span className={`text-right font-bold tabular-nums drop-shadow-md ${selectedDay ? 'text-base w-6' : 'text-xl w-10'}`}>{convert(item.max)}°</span>
+                                                </div>
+                                            </motion.div>
+                                        )
+                                    })}
+
+                                    {!selectedDay && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="mt-6 p-6 rounded-2xl bg-white/5 border border-white/10 shadow-lg backdrop-blur-sm flex items-start gap-4 hover:bg-white/10 transition-colors"
+                                        >
+                                            <div className="p-3 bg-blue-500/20 rounded-full shadow-inner shrink-0 border border-blue-400/30">
+                                                <Cloud className="w-5 h-5 text-blue-100" />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-sm font-bold uppercase tracking-wider text-blue-200/90 mb-1 drop-shadow-sm">Weekly Summary</h4>
+                                                <p className={`text-lg font-medium leading-relaxed ${textColor} drop-shadow-sm opacity-90`}>
+                                                    {generateWeeklyInsight()}
+                                                </p>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </div>
+
+                                {/* Right Column: Details */}
+                                <AnimatePresence mode="wait">
+                                    {selectedDay && (
+                                        <motion.div
+                                            initial={{ opacity: 0, x: 20 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            exit={{ opacity: 0, x: 20 }}
+                                            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                                            className="w-3/5 flex flex-col h-full pl-2"
+                                        >
+                                            <div className="flex items-center justify-between mb-6">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="p-4 bg-white/10 rounded-2xl shadow-inner border border-white/20">
+                                                        {getIcon(selectedDay.icon)}
+                                                    </div>
+                                                    <div>
+                                                        <h2 className="text-3xl font-bold drop-shadow-md">{selectedDay.day}</h2>
+                                                        <p className="text-lg opacity-80 font-medium capitalize">{selectedDay.condition || 'Clear'}</p>
                                                     </div>
                                                 </div>
-                                                <span className="w-8 text-right text-lg font-bold">{convert(item.max)}°</span>
+                                                <button
+                                                    onClick={() => setSelectedDay(null)}
+                                                    className="px-4 py-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-sm font-medium transition-colors"
+                                                >
+                                                    Close Details
+                                                </button>
                                             </div>
-                                        </div>
-                                    )
-                                })}
+
+                                            <div className="grid grid-cols-2 gap-4 mb-6">
+                                                <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col items-center justify-center gap-1 hover:bg-white/10 transition-colors">
+                                                    <span className="text-sm opacity-70 font-medium uppercase tracking-wider">High / Low</span>
+                                                    <span className="text-2xl font-bold drop-shadow-sm">{convert(selectedDay.max)}° / {convert(selectedDay.min)}°</span>
+                                                </div>
+                                                <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col items-center justify-center gap-1 hover:bg-white/10 transition-colors">
+                                                    <span className="text-sm opacity-70 font-medium uppercase tracking-wider">Feels Like</span>
+                                                    <span className="text-2xl font-bold drop-shadow-sm">{convert(selectedDay.feelsLike || selectedDay.max)}°</span>
+                                                </div>
+                                                <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col items-center justify-center gap-1 hover:bg-white/10 transition-colors">
+                                                    <span className="text-sm opacity-70 font-medium uppercase tracking-wider">Wind</span>
+                                                    <span className="text-2xl font-bold drop-shadow-sm">{Math.round(selectedDay.windSpeed || 0)} <span className="text-base font-normal opacity-70">{useUnit().unit === 'F' ? 'mph' : 'km/h'}</span></span>
+                                                </div>
+                                                <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col items-center justify-center gap-1 hover:bg-white/10 transition-colors">
+                                                    <span className="text-sm opacity-70 font-medium uppercase tracking-wider">Rain Chance</span>
+                                                    <span className="text-2xl font-bold drop-shadow-sm">{selectedDay.pop || 0}%</span>
+                                                </div>
+                                                <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col items-center justify-center gap-1 hover:bg-white/10 transition-colors">
+                                                    <span className="text-sm opacity-70 font-medium uppercase tracking-wider">Humidity</span>
+                                                    <span className="text-2xl font-bold drop-shadow-sm">{selectedDay.humidity || 0}%</span>
+                                                </div>
+                                                <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col items-center justify-center gap-1 hover:bg-white/10 transition-colors">
+                                                    <span className="text-sm opacity-70 font-medium uppercase tracking-wider">UV Index</span>
+                                                    <span className="text-2xl font-bold drop-shadow-sm">{Math.round(selectedDay.uvIndex || 0)}</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="p-5 rounded-2xl bg-blue-500/10 border border-blue-500/20 mt-auto">
+                                                <h4 className="text-sm font-bold uppercase tracking-wider text-blue-200/90 mb-2 drop-shadow-sm">Daily Insight</h4>
+                                                <p className="text-lg font-medium leading-relaxed opacity-90">
+                                                    {generateDailyInsight(selectedDay)}
+                                                </p>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
                             </div>
                         </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
+                    </div >
+                )
+                }
+            </AnimatePresence >
         </>
     );
 }

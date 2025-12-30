@@ -1,14 +1,19 @@
 'use client';
 
 import React from 'react';
+import { motion } from 'framer-motion';
 import { Card } from '@/components/ui/card';
 import { Wind, Sun, Eye, Droplets, Sunset as SunsetIcon, Moon, Gauge, Activity } from 'lucide-react';
 import { useUnit } from '@/components/UnitProvider';
 import { WeatherDetailPanel, DetailType } from './WeatherDetailPanel';
 import { WeatherData } from '@/lib/weather';
+import { StaggerContainer, FadeInItem } from '@/components/ui/motion-wrappers';
+import { useTimeTheme } from '@/components/ui/TimeTheme';
+import { MoonPhaseVisual } from './MoonPhaseVisual';
 
 interface WeatherDetailsProps {
     data: WeatherData;
+    onDetailClick: (type: DetailType) => void;
 }
 
 // Helpers
@@ -31,8 +36,6 @@ function getMoonPhaseDescription(phase: number) {
     return "Waning Crescent";
 }
 
-import { StaggerContainer, FadeInItem } from '@/components/ui/motion-wrappers';
-
 const DetailCard = ({ title, icon: Icon, children, isMorning, isAfternoon, onClick, className, allowOverflow = false }:
     { title: string, icon: React.ElementType, children: React.ReactNode, isMorning: boolean, isAfternoon: boolean, onClick?: () => void, className?: string, allowOverflow?: boolean }) => {
 
@@ -46,45 +49,37 @@ const DetailCard = ({ title, icon: Icon, children, isMorning, isAfternoon, onCli
 
     return (
         <FadeInItem className={className}>
-            <Card onClick={onClick} className={`liquid-glass p-3 flex flex-col justify-between border-0 group hover:bg-white/20 transition-colors h-[170px] relative ${allowOverflow ? 'overflow-visible' : 'overflow-hidden'} ${textColor} ${dayBorderStyles} h-full`}>
-                <div className="flex items-center gap-2 opacity-80 z-10">
-                    <Icon className={`w-4 h-4 uppercase ${iconColor}`} />
-                    <span className={`text-xs font-semibold tracking-wider uppercase truncate ${subTextColor}`}>{title}</span>
-                </div>
-                <div className="flex-1 flex flex-col justify-center items-center w-full relative text-center z-10 mt-1">
-                    {children}
-                </div>
-            </Card>
+            <motion.div
+                className="h-full rounded-xl"
+                whileHover={{
+                    y: -5,
+                    scale: 1.02,
+                    boxShadow: isDay ? "0 20px 40px -10px rgba(0,0,0,0.15)" : "0 20px 40px -10px rgba(0,0,0,0.5)"
+                }}
+                whileTap={{ scale: 0.98 }}
+                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            >
+                <Card onClick={onClick} className={`liquid-glass p-3 flex flex-col justify-between border-0 group hover:bg-white/20 transition-colors h-[170px] relative ${allowOverflow ? 'overflow-visible' : 'overflow-hidden'} ${textColor} ${dayBorderStyles} h-full`}>
+                    <div className="flex items-center gap-2 opacity-80 z-10">
+                        <Icon className={`w-4 h-4 uppercase ${iconColor}`} />
+                        <span className={`text-xs font-semibold tracking-wider uppercase truncate ${subTextColor}`}>{title}</span>
+                    </div>
+                    <div className="flex-1 flex flex-col justify-center items-center w-full relative text-center z-10 mt-1">
+                        {children}
+                    </div>
+                </Card>
+            </motion.div>
         </FadeInItem>
     );
 };
 
-import { useTimeTheme } from '@/components/ui/TimeTheme';
-
-export default function WeatherDetails({ data }: WeatherDetailsProps) {
+export default function WeatherDetails({ data, onDetailClick }: WeatherDetailsProps) {
     const { convert, unit } = useUnit();
     const { isMorning, isAfternoon } = useTimeTheme();
     const [mounted, setMounted] = React.useState(false);
 
     // Single Source of Truth for Time
     const [currentTime, setCurrentTime] = React.useState(new Date());
-    const [activeDetail, setActiveDetail] = React.useState<DetailType | null>(null);
-
-    const DETAILS_ORDER: DetailType[] = ['uv', 'wind', 'moon', 'humidity', 'visibility', 'pressure', 'sunrise', 'feelsLike'];
-
-    const handleNext = () => {
-        if (!activeDetail) return;
-        const idx = DETAILS_ORDER.indexOf(activeDetail);
-        const nextIdx = (idx + 1) % DETAILS_ORDER.length;
-        setActiveDetail(DETAILS_ORDER[nextIdx]);
-    };
-
-    const handlePrev = () => {
-        if (!activeDetail) return;
-        const idx = DETAILS_ORDER.indexOf(activeDetail);
-        const prevIdx = (idx - 1 + DETAILS_ORDER.length) % DETAILS_ORDER.length;
-        setActiveDetail(DETAILS_ORDER[prevIdx]);
-    };
 
     React.useEffect(() => {
         setMounted(true);
@@ -95,8 +90,6 @@ export default function WeatherDetails({ data }: WeatherDetailsProps) {
     if (!mounted) return null;
 
     // Derived Time Logic using context values
-    // local hour calculation removed in favor of isMorning/isAfternoon from context for consistency
-
     const textColor = isMorning ? 'text-[#1A2B44]' : (isAfternoon ? 'text-[#3B2200]' : 'text-white');
     const subTextColor = isMorning ? 'text-[#1A2B44]/70' : (isAfternoon ? 'text-[#3B2200]/70' : 'text-slate-300');
     const graphStroke = isMorning ? '#1A2B44' : (isAfternoon ? '#3B2200' : 'rgba(255,255,255,0.4)');
@@ -136,14 +129,8 @@ export default function WeatherDetails({ data }: WeatherDetailsProps) {
 
     const currentMoonPhase = data.moonPhase ?? 0;
     const phaseDesc = getMoonPhaseDescription(currentMoonPhase);
-    const moonRadius = 40;
-    const rx = moonRadius * Math.cos(2 * Math.PI * currentMoonPhase);
-    const isWaxing = currentMoonPhase <= 0.5;
-    const sweep = isWaxing ? (rx > 0 ? 1 : 0) : (rx < 0 ? 1 : 0);
-    const termArc = `A ${Math.abs(rx)} ${moonRadius} 0 0 ${sweep} 50 ${50 - moonRadius}`;
-    const shadowPath = isWaxing
-        ? `M 50 ${50 + moonRadius} ${termArc} L 0 0 L 0 100 Z`
-        : `M 50 ${50 + moonRadius} ${termArc} L 100 0 L 100 100 Z`;
+
+    // Old manual SVG logic removed in favor of MoonPhaseVisual component
 
     const minPressure = 980;
     const maxPressure = 1045;
@@ -168,7 +155,7 @@ export default function WeatherDetails({ data }: WeatherDetailsProps) {
                 isMorning={isMorning}
                 isAfternoon={isAfternoon}
                 className="cursor-pointer hover:scale-[1.02] transition-transform active:scale-95"
-                onClick={() => setActiveDetail('uv')}
+                onClick={() => onDetailClick('uv')}
             >
                 <div className="relative flex flex-col items-center w-full pointer-events-none">
                     <span className="text-5xl font-light tracking-tighter drop-shadow-md">{Math.round(data.uvIndex)}</span>
@@ -186,7 +173,7 @@ export default function WeatherDetails({ data }: WeatherDetailsProps) {
                 isMorning={isMorning}
                 isAfternoon={isAfternoon}
                 className="cursor-pointer hover:scale-[1.02] transition-transform active:scale-95"
-                onClick={() => setActiveDetail('wind')}
+                onClick={() => onDetailClick('wind')}
             >
                 <div className="relative w-32 h-32 flex items-center justify-center mt-1 shrink-0 bg-transparent rounded-full aspect-square pointer-events-none">
                     <div className={`absolute inset-0 rounded-full border backdrop-blur-sm shadow-inner ${compBorder}`} />
@@ -220,28 +207,22 @@ export default function WeatherDetails({ data }: WeatherDetailsProps) {
                 isMorning={isMorning}
                 isAfternoon={isAfternoon}
                 className="cursor-pointer hover:scale-[1.02] transition-transform active:scale-95"
-                onClick={() => setActiveDetail('moon')}
+                onClick={() => onDetailClick('moon')}
             >
-                <div className="flex flex-col items-center justify-center pb-1 pointer-events-none">
+                <div className="flex flex-col items-center justify-center pb-1 pointer-events-none w-full h-full">
                     <div className="relative w-24 h-24 filter drop-shadow-2xl">
-                        <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible">
-                            <defs>
-                                <filter id="termBlur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4" result="blur" /><feComposite in="SourceGraphic" in2="blur" operator="over" /></filter>
-                                <mask id="moonMask">
-                                    <rect x="-50" y="-50" width="200" height="200" fill="white" />
-                                    <path d={shadowPath} fill="black" filter="url(#termBlur)" />
-                                </mask>
-                                <clipPath id="circleClip"><circle cx="50" cy="50" r={moonRadius} /></clipPath>
-                            </defs>
-                            <circle cx="50" cy="50" r={moonRadius} fill="#050505" />
-                            <g mask="url(#moonMask)">
-                                <image href="/moon_texture.png" x="0" y="0" width="100" height="100" clipPath="url(#circleClip)" className="brightness-125 contrast-110" style={{ transformOrigin: 'center', transform: 'scale(1.02)' }} />
-                            </g>
-                            <circle cx="50" cy="50" r={moonRadius} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.2" opacity="0.6" />
-                        </svg>
+                        {/* New Moon Component */}
+                        <MoonPhaseVisual
+                            phase={currentMoonPhase}
+                            lat={data.lat}
+                            // For dashboard, assume visible or pass correct logic if data available. 
+                            // DetailPanel handles fadeout. Dashboard card typically shows current state.
+                            isUp={true}
+                            className="w-full h-full"
+                        />
                     </div>
-                    <div className="flex flex-col items-center mt-0">
-                        <span className={`text-[17px] font-semibold tracking-wide text-white drop-shadow-md`}>{phaseDesc}</span>
+                    <div className="flex flex-col items-center mt-2">
+                        <span className={`text-[17px] font-semibold tracking-wide ${textColor} drop-shadow-md`}>{phaseDesc}</span>
                         <span className={`text-[11px] font-medium opacity-60 uppercase tracking-wider ${textColor}`}>
                             Illumination: {Math.round((1 - Math.abs(currentMoonPhase - 0.5) * 2) * 100)}%
                         </span>
@@ -250,7 +231,7 @@ export default function WeatherDetails({ data }: WeatherDetailsProps) {
             </DetailCard>
 
             {/* 4. Humidity */}
-            <DetailCard title="Humidity" icon={Droplets} isMorning={isMorning} isAfternoon={isAfternoon} className="cursor-pointer hover:scale-[1.02] transition-transform active:scale-95" onClick={() => setActiveDetail('humidity')}>
+            <DetailCard title="Humidity" icon={Droplets} isMorning={isMorning} isAfternoon={isAfternoon} className="cursor-pointer hover:scale-[1.02] transition-transform active:scale-95" onClick={() => onDetailClick('humidity')}>
                 <div className="flex flex-col items-center pb-2 pointer-events-none">
                     <span className="text-4xl font-light tracking-tight text-white">{data.humidity}%</span>
                     <span className="text-xs font-medium opacity-70 mt-2">Dew Point: {convert(data.feelsLike - 2)}°</span>
@@ -258,7 +239,7 @@ export default function WeatherDetails({ data }: WeatherDetailsProps) {
             </DetailCard>
 
             {/* 5. Visibility */}
-            <DetailCard title="Visibility" icon={Eye} isMorning={isMorning} isAfternoon={isAfternoon} className="cursor-pointer hover:scale-[1.02] transition-transform active:scale-95" onClick={() => setActiveDetail('visibility')}>
+            <DetailCard title="Visibility" icon={Eye} isMorning={isMorning} isAfternoon={isAfternoon} className="cursor-pointer hover:scale-[1.02] transition-transform active:scale-95" onClick={() => onDetailClick('visibility')}>
                 <div className="flex flex-col items-center pb-2 pointer-events-none">
                     <span className="text-4xl font-light tracking-tight text-white">{data.visibility} <span className="text-lg font-medium opacity-60">km</span></span>
                     <span className="text-xs font-medium opacity-70 mt-2">Clear View</span>
@@ -266,7 +247,7 @@ export default function WeatherDetails({ data }: WeatherDetailsProps) {
             </DetailCard>
 
             {/* 6. Pressure */}
-            <DetailCard title="Pressure" icon={Gauge} isMorning={isMorning} isAfternoon={isAfternoon} className="cursor-pointer hover:scale-[1.02] transition-transform active:scale-95" onClick={() => setActiveDetail('pressure')}>
+            <DetailCard title="Pressure" icon={Gauge} isMorning={isMorning} isAfternoon={isAfternoon} className="cursor-pointer hover:scale-[1.02] transition-transform active:scale-95" onClick={() => onDetailClick('pressure')}>
                 <div className="relative w-full h-full flex flex-row items-center justify-between px-1 pointer-events-none">
                     <div className="relative w-[65%] h-full flex items-end justify-center pb-1">
                         <svg viewBox="0 0 160 100" className="w-full h-full overflow-visible">
@@ -290,7 +271,7 @@ export default function WeatherDetails({ data }: WeatherDetailsProps) {
             </DetailCard>
 
             {/* 7. Sunrise */}
-            <DetailCard title="Sunrise" icon={SunsetIcon} isMorning={isMorning} isAfternoon={isAfternoon} onClick={() => setActiveDetail('sunrise')} allowOverflow={true} className="cursor-pointer hover:scale-[1.02] transition-transform active:scale-95">
+            <DetailCard title="Sunrise" icon={SunsetIcon} isMorning={isMorning} isAfternoon={isAfternoon} onClick={() => onDetailClick('sunrise')} allowOverflow={true} className="cursor-pointer hover:scale-[1.02] transition-transform active:scale-95">
                 <div className="relative w-full h-full flex flex-col justify-end pb-1 pointer-events-none">
                     <div className="relative w-full h-16 mb-2">
                         <div className={`absolute bottom-1 left-0 right-0 h-px ${dividerColor}`} />
@@ -323,25 +304,12 @@ export default function WeatherDetails({ data }: WeatherDetailsProps) {
             </DetailCard>
 
             {/* 8. Feels Like */}
-            <DetailCard title="Feels Like" icon={Activity} isMorning={isMorning} isAfternoon={isAfternoon} className="cursor-pointer hover:scale-[1.02] transition-transform active:scale-95" onClick={() => setActiveDetail('feelsLike')}>
+            <DetailCard title="Feels Like" icon={Activity} isMorning={isMorning} isAfternoon={isAfternoon} className="cursor-pointer hover:scale-[1.02] transition-transform active:scale-95" onClick={() => onDetailClick('feelsLike')}>
                 <div className="flex flex-col items-center justify-center h-full pb-2 pointer-events-none">
                     <span className={`text-5xl font-light tracking-tighter drop-shadow-md ${textColor}`}>{convert(Math.round(data.feelsLike))}°</span>
                     <span className="text-xs font-medium opacity-70 mt-2">{feelsLikeDesc}</span>
                 </div>
             </DetailCard>
-
-            {/* Universal Detail Panel */}
-            {activeDetail && (
-                <WeatherDetailPanel
-                    type={activeDetail}
-                    data={data}
-                    onClose={() => setActiveDetail(null)}
-                    onNext={handleNext}
-                    onPrev={handlePrev}
-                    isMorning={isMorning}
-                    isAfternoon={isAfternoon}
-                />
-            )}
         </StaggerContainer>
     );
 }

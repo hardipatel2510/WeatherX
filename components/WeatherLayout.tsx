@@ -9,13 +9,15 @@ import GradualBlur from '@/components/GradualBlur';
 interface WeatherLayoutProps {
     children: ReactNode;
     timezone: number;
+    sunrise: string;
+    sunset: string;
 }
 
-export default function WeatherLayout({ children, timezone }: WeatherLayoutProps) {
+export default function WeatherLayout({ children, timezone, sunrise, sunset }: WeatherLayoutProps) {
     return (
         <main className="h-screen w-full relative overflow-hidden font-sans selection:bg-blue-500/30 text-white">
             {/* Cinematic Video/Cloud Background */}
-            <CloudBackground timezone={timezone} />
+            <CloudBackground timezone={timezone} sunrise={sunrise} sunset={sunset} />
 
             {/* Top Left Logo */}
             <div className="absolute top-4 left-4 z-[100] flex items-center gap-2">
