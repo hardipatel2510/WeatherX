@@ -102,13 +102,12 @@ export default function SearchBar({ defaultValue = '' }: SearchBarProps) {
                                     text={['Ahmedabad', 'London', 'New York', 'Tokyo', 'Paris']}
                                     typingSpeed={40}
                                     deletingSpeed={50}
-                                    pauseTime={1400}
+                                    pauseDuration={1400}
                                     loop={true}
                                     cursorCharacter="|"
-                                    cursorBlinkSpeed={500}
+                                    cursorBlinkDuration={0.5}
                                     showCursor={true}
                                     className={`text-lg ${textColor} opacity-60`}
-                                // Removed invalid prop 'words' if it existed before
                                 />
                             </div>
                         )}

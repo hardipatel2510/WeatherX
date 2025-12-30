@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { WeatherData } from '@/lib/weather';
+import { useUnit } from '@/components/UnitProvider';
 
 // Types of details we support (Extended)
 export type DetailType = 'uv' | 'wind' | 'moon' | 'humidity' | 'visibility' | 'pressure' | 'clouds' | 'sunrise' | 'feelsLike' | 'aqi' | 'temp';
@@ -55,6 +56,7 @@ const getAQILabel = (aqi: number) => {
 };
 
 export function WeatherDetailPanel({ type, data, onClose, onNext, onPrev, isMorning, isAfternoon }: WeatherDetailPanelProps) {
+    const { unit } = useUnit();
     // Timeline State: 0 (Now) to 24 (Next 24h)
     const [sliderValue, setSliderValue] = useState(0);
 
@@ -127,9 +129,12 @@ export function WeatherDetailPanel({ type, data, onClose, onNext, onPrev, isMorn
                 );
 
             case 'wind':
+                const displaySpeed = unit === 'C' ? Math.round(iWindSpeed * 3.6) : Math.round(iWindSpeed);
+                const displayUnit = unit === 'C' ? 'km/h' : 'mph';
+
                 return (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center">
-                        <span className="text-7xl font-thin mb-1">{Math.round(iWindSpeed)}<span className="text-3xl ml-2">mph</span></span>
+                        <span className="text-7xl font-thin mb-1">{displaySpeed}<span className="text-3xl ml-2">{displayUnit}</span></span>
                         <span className="text-lg opacity-70 mb-8 capitalize">{iWindSpeed > 15 ? 'Windy' : (iWindSpeed > 5 ? 'Breezy' : 'Calm')}</span>
                         {/* Compass */}
                         <div className="relative w-64 h-64 border-4 border-current opacity-80 rounded-full flex items-center justify-center mb-8">
@@ -226,23 +231,145 @@ export function WeatherDetailPanel({ type, data, onClose, onNext, onPrev, isMorn
                 );
 
             case 'sunrise':
+                // 1. Parse Time Helper (Local scoped for this case)
+                const parseTime = (timeStr: string) => {
+                    const [t, period] = timeStr.split(' ');
+                    const [h, m] = t.split(':').map(Number);
+                    let hours = h;
+                    if (period === 'PM' && h !== 12) hours += 12;
+                    if (period === 'AM' && h === 12) hours = 0;
+                    return hours * 60 + m; // Minutes from midnight
+                };
+
+                // 2. Get Today's Data
+                const sunriseMins = parseTime(data.sunrise);
+                const sunsetMins = parseTime(data.sunset);
+
+                // 3. Current Simulated Time (Slider)
+                // sliderValue is "hours from now". 
+                // We need absolute minutes to compare with sunrise/sunset.
+                const now = new Date(); // Using device time as base anchor, same as slider logic
+                const currentTotalMins = (now.getHours() * 60 + now.getMinutes()) + (sliderValue * 60);
+                // Normalize to 24h cycle effectively? Or just linear day?
+                // For simplicity, let's treat everything as absolute minutes from today's midnight.
+                // If slider goes into tomorrow, we just add minutes.
+
+                // Effective Day Boundaries for Visualization
+                // We want the curve to strictly represent Sunrise -> Sunset.
+                const dayLength = sunsetMins - sunriseMins;
+                const sunProgress = Math.max(0, Math.min(1, (currentTotalMins - sunriseMins) / dayLength));
+
+                // 4. Bezier Curve Math (Quadratic)
+                // Start (0, 100) -> Top (150, 0) -> End (300, 100)  (SVG Space: 300 wide, 100 high? Let's tune)
+                // Actually let's use a nice wide arc.
+                // P0(Start) = {x: 20, y: 80}
+                // P1(Control) = {x: 150, y: -20} (Negative to pull arc up)
+                // P2(End) = {x: 280, y: 80}
+
+                const P0 = { x: 30, y: 120 };
+                const P1 = { x: 150, y: -30 };
+                const P2 = { x: 270, y: 120 };
+
+                const t = sunProgress;
+                const bx = (1 - t) * (1 - t) * P0.x + 2 * (1 - t) * t * P1.x + t * t * P2.x;
+                const by = (1 - t) * (1 - t) * P0.y + 2 * (1 - t) * t * P1.y + t * t * P2.y;
+
+                // Dynamic Horizon Line (Dashed)
+                const horizonY = P0.y;
+
+                const isDayTime = currentTotalMins >= sunriseMins && currentTotalMins <= sunsetMins;
+
+                // 5. Background Dynamic Darkening (Subtle)
+                // Darken if close to sunset or night
+                // We can inject a style into the container or just use an overlay here.
+                // Let's use a large glow overlay behind the sun.
+
+                // Format times for display label
+                const timeLabel = (() => {
+                    const totalM = Math.floor(currentTotalMins) % (24 * 60);
+                    const h = Math.floor(totalM / 60);
+                    const m = Math.floor(totalM % 60);
+                    const period = h >= 12 ? 'PM' : 'AM';
+                    const displayH = h % 12 || 12;
+                    const displayM = m.toString().padStart(2, '0');
+                    return `${displayH}:${displayM} ${period}`;
+                })();
+
                 return (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center space-y-8">
-                        <div className="text-center">
-                            <span className="text-6xl font-light">{data.sunrise}</span>
-                            <span className="block text-sm mt-2 opacity-60 uppercase tracking-wide">Sunrise Today</span>
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-between h-full py-4 relative overflow-hidden">
+
+                        {/* Dynamic Background Overlay for "Evening" feel */}
+                        <motion.div
+                            className="absolute inset-0 z-0 pointer-events-none transition-colors duration-1000"
+                            animate={{
+                                background: sunProgress > 0.8 ? 'linear-gradient(to bottom, rgba(0,0,0,0.4), transparent)' : 'linear-gradient(to bottom, rgba(255,255,255,0), transparent)'
+                            }}
+                        />
+
+                        {/* Top Info */}
+                        <div className="text-center z-10">
+                            <span className="text-5xl font-light tracking-tight">{data.sunrise}</span>
+                            <span className="block text-sm mt-1 opacity-60 uppercase tracking-wide">Sunrise</span>
                         </div>
-                        {/* Mini Graph */}
-                        <div className="w-full h-32 relative">
-                            <svg viewBox="0 0 200 100" className="w-full h-full">
-                                <path d="M 20 80 Q 100 20 180 80" fill="none" stroke="#FDB813" strokeWidth="2" strokeDasharray="4 4" />
-                                <circle cx="20" cy="80" r="4" fill="#FDB813" />
-                                <circle cx="180" cy="80" r="4" fill="#FDB813" />
+
+                        {/* Animated Sun Graph */}
+                        <div className="relative w-full h-[180px] flex items-end justify-center z-10">
+                            <svg viewBox="0 0 300 150" className="w-full h-full overflow-visible">
+                                <defs>
+                                    <linearGradient id="sunPathGradient" x1="0" y1="0" x2="1" y2="0">
+                                        <stop offset="0%" stopColor="#FDB813" stopOpacity="0.3" />
+                                        <stop offset="50%" stopColor="#FDB813" stopOpacity="1" />
+                                        <stop offset="100%" stopColor="#FDB813" stopOpacity="0.3" />
+                                    </linearGradient>
+                                    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                                        <feGaussianBlur stdDeviation="4" result="coloredBlur" />
+                                        <feMerge>
+                                            <feMergeNode in="coloredBlur" />
+                                            <feMergeNode in="SourceGraphic" />
+                                        </feMerge>
+                                    </filter>
+                                </defs>
+
+                                {/* Horizon Line */}
+                                <line x1="0" y1={horizonY} x2="300" y2={horizonY} stroke="white" strokeWidth="1" strokeDasharray="4 4" opacity="0.2" />
+
+                                {/* Path Curve (Dashed & Low Opacity) */}
+                                <path
+                                    d={`M ${P0.x} ${P0.y} Q ${P1.x} ${P1.y} ${P2.x} ${P2.y}`}
+                                    fill="none"
+                                    stroke="white"
+                                    strokeWidth="2"
+                                    strokeDasharray="6 6"
+                                    opacity="0.2"
+                                />
+
+                                {/* Active Path (filled up to sun position) - Optional, maybe just the sun is enough? Apple weather just has the sun. */}
+
+                                {/* The Sun */}
+                                <motion.g
+                                    animate={{ x: bx, y: by }}
+                                    transition={{ type: "spring", stiffness: 100, damping: 20 }}
+                                >
+                                    {/* Sun Glow/Halo */}
+                                    <circle r="20" fill="#FDB813" opacity="0.3" filter="url(#glow)" />
+                                    <circle r="12" fill="#FDB813" opacity="0.6" />
+                                    <circle r="8" fill="#FFF" />
+                                </motion.g>
                             </svg>
+
+                            {/* Current Time Label Floating near Sun (Optional, or just keep main labels) */}
                         </div>
-                        <div className="text-center">
-                            <span className="text-4xl font-light opacity-80">{data.sunset}</span>
-                            <span className="block text-sm mt-2 opacity-60 uppercase tracking-wide">Sunset Today</span>
+
+                        {/* Bottom Info */}
+                        <div className="text-center z-10 w-full flex justify-between px-8">
+                            <div className="flex flex-col items-center">
+                                <span className="text-xs opacity-50 uppercase">First Light</span>
+                                <span className="text-lg font-medium">{timeLabel}</span>
+                            </div>
+                            <div className="flex flex-col items-center">
+                                <span className="text-xs opacity-50 uppercase">Sunset</span>
+                                <span className="text-lg font-medium">{data.sunset}</span>
+                            </div>
                         </div>
                     </motion.div>
                 );
@@ -255,7 +382,7 @@ export function WeatherDetailPanel({ type, data, onClose, onNext, onPrev, isMorn
                         <div className="grid grid-cols-2 gap-4 w-full max-w-xs mt-8">
                             <div className="p-4 bg-white/5 rounded-2xl text-center">
                                 <span className="block text-xs uppercase opacity-50">Wind</span>
-                                <span className="text-xl font-medium">{Math.round(iWindSpeed)} mph</span>
+                                <span className="text-xl font-medium">{unit === 'C' ? Math.round(iWindSpeed * 3.6) : Math.round(iWindSpeed)} {unit === 'C' ? 'km/h' : 'mph'}</span>
                             </div>
                             <div className="p-4 bg-white/5 rounded-2xl text-center">
                                 <span className="block text-xs uppercase opacity-50">Humidity</span>

@@ -5,12 +5,17 @@ interface TextTypeProps {
     text: string | string[];
     typingSpeed?: number;
     deletingSpeed?: number;
-    pauseTime?: number;
+    pauseDuration?: number;
     loop?: boolean;
-    emptyPauseTime?: number;
+    initialDelay?: number;
     cursorCharacter?: string;
-    cursorBlinkSpeed?: number;
+    cursorBlinkDuration?: number; // Seconds
     showCursor?: boolean;
+    hideCursorWhileTyping?: boolean;
+    textColors?: string[];
+    variableSpeed?: { min: number; max: number };
+    startOnVisible?: boolean;
+    reverseMode?: boolean;
     mode?: 'default' | 'scramble' | 'random';
     scrambleStep?: number;
     scrambleSpeed?: number;
