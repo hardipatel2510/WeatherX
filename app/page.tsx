@@ -31,6 +31,7 @@ function WeatherDashboard() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [activeDetail, setActiveDetail] = useState<DetailType | null>(null);
+    const [isSavedLocationsOpen, setIsSavedLocationsOpen] = useState(false);
 
     const DETAILS_ORDER: DetailType[] = ['uv', 'wind', 'moon', 'humidity', 'visibility', 'pressure', 'sunrise', 'feelsLike', 'airQuality', 'clouds', 'average'];
 
@@ -87,6 +88,7 @@ function WeatherDashboard() {
                 timezone={timezone}
                 sunrise={weather?.sunrise || "06:00 AM"}
                 sunset={weather?.sunset || "06:00 PM"}
+                isSavedLocationsOpen={isSavedLocationsOpen}
             >
                 <TimeThemeProvider timezone={timezone}>
 
@@ -112,7 +114,10 @@ function WeatherDashboard() {
 
                     {/* Search Bar - Always Interactive */}
                     <div className="w-full max-w-lg mx-auto mb-4 relative z-50">
-                        <SearchBar />
+                        <SearchBar
+                            isDrawerOpen={isSavedLocationsOpen}
+                            setIsDrawerOpen={setIsSavedLocationsOpen}
+                        />
                     </div>
 
                     {/* ERROR TOAST (If we have data but specific search failed) */}

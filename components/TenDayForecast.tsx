@@ -38,7 +38,7 @@ const getIcon = (iconName: string) => {
 };
 
 export default function TenDayForecast({ data, currentTemp }: TenDayForecastProps) {
-    const { convert } = useUnit();
+    const { convert, unit } = useUnit();
     const { isMorning, isAfternoon } = useTimeTheme();
     const [isOpen, setIsOpen] = useState(false);
     const [selectedDay, setSelectedDay] = useState<DailyForecast | null>(null);
@@ -332,7 +332,7 @@ export default function TenDayForecast({ data, currentTemp }: TenDayForecastProp
                                                 </div>
                                                 <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col items-center justify-center gap-1 hover:bg-white/10 transition-colors">
                                                     <span className="text-sm opacity-70 font-medium uppercase tracking-wider">Wind</span>
-                                                    <span className="text-2xl font-bold drop-shadow-sm">{Math.round(selectedDay.windSpeed || 0)} <span className="text-base font-normal opacity-70">{useUnit().unit === 'F' ? 'mph' : 'km/h'}</span></span>
+                                                    <span className="text-2xl font-bold drop-shadow-sm">{Math.round(selectedDay.windSpeed || 0)} <span className="text-base font-normal opacity-70">{unit === 'F' ? 'mph' : 'km/h'}</span></span>
                                                 </div>
                                                 <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col items-center justify-center gap-1 hover:bg-white/10 transition-colors">
                                                     <span className="text-sm opacity-70 font-medium uppercase tracking-wider">Rain Chance</span>
