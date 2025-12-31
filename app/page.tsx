@@ -166,8 +166,7 @@ function WeatherDashboard() {
                             </FadeInItem>
 
                             {/* 3. Main Content: 3-Column Layout */}
-                            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 flex-1 pb-6 w-full">
-
+                            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 flex-1 pb-6 w-full max-w-7xl mx-auto px-4 md:px-0">
                                 {/* Left Column */}
                                 <FadeInItem className="lg:col-span-1 h-full">
                                     <SidePanel

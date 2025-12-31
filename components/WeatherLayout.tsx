@@ -76,7 +76,7 @@ export default function WeatherLayout({ children, timezone, sunrise, sunset, isS
 
             {/* Scrollable Container */}
             <div className="w-full h-full overflow-y-auto no-scrollbar relative">
-                <div className="max-w-[1400px] mx-auto z-10 relative flex flex-col p-6 min-h-screen gap-6 pb-32">
+                <div className="max-w-[1400px] mx-auto z-10 relative flex flex-col p-4 md:p-6 min-h-screen gap-4 md:gap-6 pb-32">
                     {children}
                 </div>
 

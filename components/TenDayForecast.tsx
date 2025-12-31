@@ -98,7 +98,7 @@ export default function TenDayForecast({ data, currentTemp }: TenDayForecastProp
                 onClick={(e) => { e.stopPropagation(); setIsOpen(true); }}
             >
                 <Card
-                    className={`liquid-glass w-full h-full p-6 flex flex-col border border-white/20 relative overflow-hidden ${textColor} ${morningCardStyles} cursor-pointer group hover:bg-white/20 transition-colors`}
+                    className={`liquid-glass w-full h-full p-4 md:p-6 flex flex-col border border-white/20 relative overflow-hidden ${textColor} ${morningCardStyles} cursor-pointer group hover:bg-white/20 transition-colors`}
                 >
                     {/* Subtle background glow */}
                     <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/20 blur-[60px] rounded-full pointer-events-none" />

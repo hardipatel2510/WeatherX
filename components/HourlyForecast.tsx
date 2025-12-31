@@ -78,16 +78,16 @@ export default function HourlyForecast({ data, summary = "Clear conditions will 
     const dividerColor = isMorning ? 'bg-[#1A2B44]/50' : (isAfternoon ? 'bg-[#3B2200]/50' : 'bg-white/50');
 
     return (
-        <Card className={`w-full liquid-glass border-0 rounded-[24px] p-6 shadow-xl backdrop-blur-3xl min-h-[160px] flex flex-col justify-center ${textColor} ${morningCardStyles}`}>
+        <Card className={`w-full liquid-glass border-0 rounded-[24px] p-4 md:p-6 shadow-xl backdrop-blur-3xl min-h-[160px] flex flex-col justify-center ${textColor} ${morningCardStyles}`}>
             {/* Top Line Summary */}
             <div className={`flex items-center gap-1.5 opacity-70 mb-4 pb-3 border-b ${separatorClass}`}>
                 <div className={`w-1.5 h-1.5 rounded-full ${dividerColor}`} />
-                <span className={`text-sm font-medium uppercase tracking-widest ${subTextColor}`}>Today&apos;s Forecast</span>
-                <span className="ml-auto text-xs font-light opacity-80">{summary}</span>
+                <span className={`text-[10px] md:text-sm font-medium uppercase tracking-widest ${subTextColor}`}>Today&apos;s Forecast</span>
+                <span className="ml-auto text-[10px] md:text-xs font-light opacity-80 truncate max-w-[150px] md:max-w-none">{summary}</span>
             </div>
 
-            {/* Timeline Row */}
-            <div className="flex justify-between items-center w-full px-2">
+            {/* Timeline Row - Horizontal Scroll on Mobile */}
+            <div className="flex overflow-x-auto no-scrollbar justify-between md:justify-between items-center w-full px-2 gap-4 md:gap-0">
                 {displayData.map((item, i) => {
                     // isNight Calculation:
                     // PM: >= 6 PM (except 12 PM is noon).
@@ -99,15 +99,15 @@ export default function HourlyForecast({ data, summary = "Clear conditions will 
                     const isSunset = item.time === '7 PM'; // Mock sunset
 
                     return (
-                        <div key={i} className="flex flex-col items-center gap-1 min-w-[50px] group cursor-default">
-                            <span className="text-xs font-semibold opacity-80 group-hover:opacity-100 transition-opacity">{i === 0 ? 'Now' : item.time}</span>
+                        <div key={i} className="flex flex-col items-center gap-1 min-w-[4.5rem] md:min-w-[50px] group cursor-default shrink-0">
+                            <span className="text-xs font-semibold opacity-80 group-hover:opacity-100 transition-opacity whitespace-nowrap">{i === 0 ? 'Now' : item.time}</span>
                             <div className="py-1 transform group-hover:-translate-y-1 transition-transform duration-300">
                                 {getIcon(item.icon, isNight, isMorning)}
                             </div>
                             {isSunset ? (
-                                <span className="text-sm font-medium text-white/90">Sunset</span>
+                                <span className="text-xs md:text-sm font-medium text-white/90">Sunset</span>
                             ) : (
-                                <span className="text-lg font-medium tracking-tight shadow-black drop-shadow-sm group-hover:scale-110 transition-transform">
+                                <span className="text-base md:text-lg font-medium tracking-tight shadow-black drop-shadow-sm group-hover:scale-110 transition-transform">
                                     {convert(item.temp)}°
                                 </span>
                             )}

@@ -146,7 +146,7 @@ export default function WeatherDetails({ data, onDetailClick }: WeatherDetailsPr
     if (feelsLikeDiff < -1) feelsLikeDesc = "Feels cooler";
 
     return (
-        <StaggerContainer className="grid grid-cols-2 gap-3 w-full h-full">
+        <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full h-full">
 
             {/* 1. UV Index */}
             <DetailCard

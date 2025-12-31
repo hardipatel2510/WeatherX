@@ -54,13 +54,13 @@ export default function WeatherHero({ city, temp, condition, high, low }: HeroPr
                 </button>
             </div>
 
-            <div className="flex items-start justify-center">
-                <h1 className={`text-8xl font-thin tracking-tighter drop-shadow-lg ml-4`}>
+            <div className="flex items-center justify-center">
+                <h1 className={`text-[64px] md:text-8xl font-thin tracking-tighter drop-shadow-lg ml-4`}>
                     {convert(temp)}°
                 </h1>
             </div>
-            <p className={`text-lg font-medium opacity-90 capitalize drop-shadow-md`}>{condition}</p>
-            <div className={`flex gap-4 text-base font-medium opacity-80 mt-0.5 ${subTextColor}`}>
+            <p className={`text-lg md:text-xl font-medium opacity-90 capitalize drop-shadow-md text-center`}>{condition}</p>
+            <div className={`flex gap-4 text-sm md:text-base font-medium opacity-80 mt-0.5 ${subTextColor}`}>
                 <span>H:{convert(high)}°</span>
                 <span>L:{convert(low)}°</span>
             </div>
