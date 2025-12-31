@@ -20,17 +20,26 @@ export default function WeatherLayout({ children, timezone, sunrise, sunset }: W
             <CloudBackground timezone={timezone} sunrise={sunrise} sunset={sunset} />
 
             {/* Top Left Logo */}
-            <div className="absolute top-4 left-4 z-[100] flex items-center gap-2">
-                <div className="relative w-10 h-10 overflow-hidden rounded-full border border-white/20 shadow-lg">
-                    <Image
-                        src="/logo.png"
-                        alt="WeatherX Logo"
-                        fill
-                        className="object-cover"
-                        priority
-                    />
+            <div className="absolute top-4 left-4 z-[100] group cursor-pointer animate-float-slow">
+                {/* Frosted Glass Pill - Matched to Top Right */}
+                <div className="hyper-glass h-[40px] px-4 flex items-center gap-3 rounded-full hover:bg-white/10 transition-all">
+
+                    {/* Logo Circle - Crisp & Clean */}
+                    <div className="relative w-6 h-6 shrink-0 overflow-hidden rounded-full">
+                        <Image
+                            src="/logo.png"
+                            alt="WeatherX Logo"
+                            fill
+                            className="object-cover"
+                            priority
+                        />
+                    </div>
+
+                    {/* Text */}
+                    <span className="text-lg font-bold tracking-wide text-white drop-shadow-sm hidden sm:block">
+                        WeatherX
+                    </span>
                 </div>
-                <span className="text-xl font-bold tracking-tight transform translate-y-[1px] drop-shadow-md hidden sm:block">WeatherX</span>
             </div>
 
             {/* Top Right Unit Toggle - Fixed Z-Index Higher than Blur */}

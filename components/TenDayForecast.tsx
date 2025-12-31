@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Sun, Cloud, CloudRain, CloudLightning, CloudSnow, Calendar, X } from 'lucide-react';
 import { useUnit } from '@/components/UnitProvider';
 import { useTimeTheme } from '@/components/ui/TimeTheme';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 
 interface DailyForecast {
     day: string;
@@ -86,74 +86,85 @@ export default function TenDayForecast({ data, currentTemp }: TenDayForecastProp
 
     return (
         <>
-            <Card
+            <motion.div
+                className="h-full rounded-[28px]"
+                whileHover={{
+                    y: -5,
+                    scale: 1.02,
+                    boxShadow: isDay ? "0 20px 40px -10px rgba(0,0,0,0.15)" : "0 20px 40px -10px rgba(0,0,0,0.5)"
+                }}
+                whileTap={{ scale: 0.98 }}
+                transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 onClick={(e) => { e.stopPropagation(); setIsOpen(true); }}
-                className={`liquid-glass w-full h-full p-6 shadow-2xl flex flex-col border border-white/20 relative overflow-hidden ${textColor} ${morningCardStyles} cursor-pointer hover:scale-[1.02] transition-transform active:scale-95`}
             >
-                {/* Subtle background glow */}
-                <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/20 blur-[60px] rounded-full pointer-events-none" />
+                <Card
+                    className={`liquid-glass w-full h-full p-6 flex flex-col border border-white/20 relative overflow-hidden ${textColor} ${morningCardStyles} cursor-pointer group hover:bg-white/20 transition-colors`}
+                >
+                    {/* Subtle background glow */}
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/20 blur-[60px] rounded-full pointer-events-none" />
 
-                {/* Header */}
-                <div className="flex items-center gap-2 opacity-80 mb-5 pl-1">
-                    <Calendar className={`w-4 h-4 ${iconColor}`} />
-                    <span className={`text-xs font-semibold uppercase tracking-widest drop-shadow-sm ${subTextColor}`}>5-Day Forecast</span>
-                </div>
+                    {/* Header */}
+                    <div className="flex items-center gap-2 opacity-80 mb-5 pl-1">
+                        <Calendar className={`w-4 h-4 ${iconColor}`} />
+                        <span className={`text-xs font-semibold uppercase tracking-widest drop-shadow-sm ${subTextColor}`}>5-Day Forecast</span>
+                    </div>
 
-                <div className="flex flex-col flex-1 justify-between gap-1 pointer-events-none">
-                    {fiveDayData.map((item, index) => { // Show first 5
-                        const isToday = index === 0;
+                    <div className="flex flex-col flex-1 justify-between gap-1 pointer-events-none">
+                        {fiveDayData.map((item, index) => { // Show first 5
+                            const isToday = index === 0;
 
-                        // Bar calculations
-                        const leftPct = ((item.min - globalMin) / totalRange) * 100;
-                        const widthPct = ((item.max - item.min) / totalRange) * 100;
+                            // Bar calculations
+                            const leftPct = ((item.min - globalMin) / totalRange) * 100;
+                            const widthPct = ((item.max - item.min) / totalRange) * 100;
 
-                        // Dot calculations (only for Today)
-                        let dotLeftPct = 0;
-                        if (isToday && currentTemp !== undefined) {
-                            dotLeftPct = ((currentTemp - item.min) / (item.max - item.min)) * 100;
-                            dotLeftPct = Math.max(0, Math.min(100, dotLeftPct));
-                        }
+                            // Dot calculations (only for Today)
+                            let dotLeftPct = 0;
+                            if (isToday && currentTemp !== undefined) {
+                                dotLeftPct = ((currentTemp - item.min) / (item.max - item.min)) * 100;
+                                dotLeftPct = Math.max(0, Math.min(100, dotLeftPct));
+                            }
 
-                        return (
-                            <div key={index} className={`grid grid-cols-[3.5rem_2.5rem_1fr] items-center gap-4 py-3 border-b last:border-0 rounded-xl px-2 -mx-2 ${separatorClass}`}>
-                                {/* Day Name */}
-                                <span className={`text-base tracking-wide ${isToday ? 'font-bold' : 'font-medium opacity-90'} drop-shadow-sm`}>
-                                    {isToday ? 'Today' : item.day.slice(0, 3)}
-                                </span>
-
-                                {/* Icon */}
-                                <div className="flex justify-center">
-                                    {getIcon(item.icon)}
-                                </div>
-
-                                {/* Temp Bar Section */}
-                                <div className="flex items-center gap-4 w-full">
-                                    <span className={`w-8 text-right text-lg font-medium tabular-nums drop-shadow-sm ${isToday ? '' : 'opacity-70'}`}>
-                                        {convert(item.min)}°
+                            return (
+                                <div key={index} className={`grid grid-cols-[3.5rem_2.5rem_1fr] items-center gap-4 py-3 border-b last:border-0 rounded-xl px-2 -mx-2 ${separatorClass}`}>
+                                    {/* Day Name */}
+                                    <span className={`text-base tracking-wide ${isToday ? 'font-bold' : 'font-medium opacity-90'} drop-shadow-sm`}>
+                                        {isToday ? 'Today' : item.day.slice(0, 3)}
                                     </span>
-                                    <div className={`flex-1 h-2.5 rounded-full relative overflow-hidden backdrop-blur-sm shadow-inner ${barBg}`}>
-                                        <div
-                                            className="absolute top-0 bottom-0 rounded-full bg-gradient-to-r from-blue-400 via-green-400 via-yellow-400 to-orange-500 shadow-[0_0_12px_rgba(253,186,116,0.6)]"
-                                            style={{
-                                                left: `${leftPct}%`,
-                                                width: `${Math.max(widthPct, 5)}%`
-                                            }}
-                                        >
-                                            {isToday && currentTemp !== undefined && (
-                                                <div
-                                                    className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-[0_0_8px_rgba(255,255,255,0.8)] border-2 border-white z-10"
-                                                    style={{ left: `${dotLeftPct}%`, transform: `translate(-50%, -50%)` }}
-                                                />
-                                            )}
-                                        </div>
+
+                                    {/* Icon */}
+                                    <div className="flex justify-center">
+                                        {getIcon(item.icon)}
                                     </div>
-                                    <span className={`w-8 text-right text-lg font-bold tabular-nums drop-shadow-md`}>{convert(item.max)}°</span>
+
+                                    {/* Temp Bar Section */}
+                                    <div className="flex items-center gap-4 w-full">
+                                        <span className={`w-8 text-right text-lg font-medium tabular-nums drop-shadow-sm ${isToday ? '' : 'opacity-70'}`}>
+                                            {convert(item.min)}°
+                                        </span>
+                                        <div className={`flex-1 h-2.5 rounded-full relative overflow-hidden backdrop-blur-sm shadow-inner ${barBg}`}>
+                                            <div
+                                                className="absolute top-0 bottom-0 rounded-full bg-gradient-to-r from-blue-400 via-green-400 via-yellow-400 to-orange-500 shadow-[0_0_12px_rgba(253,186,116,0.6)]"
+                                                style={{
+                                                    left: `${leftPct}%`,
+                                                    width: `${Math.max(widthPct, 5)}%`
+                                                }}
+                                            >
+                                                {isToday && currentTemp !== undefined && (
+                                                    <div
+                                                        className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-[0_0_8px_rgba(255,255,255,0.8)] border-2 border-white z-10"
+                                                        style={{ left: `${dotLeftPct}%`, transform: `translate(-50%, -50%)` }}
+                                                    />
+                                                )}
+                                            </div>
+                                        </div>
+                                        <span className={`w-8 text-right text-lg font-bold tabular-nums drop-shadow-md`}>{convert(item.max)}°</span>
+                                    </div>
                                 </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            </Card>
+                            );
+                        })}
+                    </div>
+                </Card>
+            </motion.div>
 
             {/* Expanded Modal */}
             <AnimatePresence>
@@ -197,73 +208,90 @@ export default function TenDayForecast({ data, currentTemp }: TenDayForecastProp
 
                             <div className="flex items-start gap-8 h-full min-h-0">
                                 {/* Left Column: List */}
-                                <div className={`flex flex-col gap-2 overflow-y-auto transition-all duration-500 ease-spring ${selectedDay ? 'w-2/5 pr-4 border-r border-white/10' : 'w-full'}`}>
-                                    {fiveDayData.map((item, index) => {
-                                        const isToday = index === 0;
-                                        const isSelected = selectedDay === item;
-                                        const leftPct = ((item.min - globalMin) / totalRange) * 100;
-                                        const widthPct = ((item.max - item.min) / totalRange) * 100;
-                                        let dotLeftPct = 0;
-                                        if (isToday && currentTemp !== undefined) {
-                                            dotLeftPct = ((currentTemp - item.min) / (item.max - item.min)) * 100;
-                                            dotLeftPct = Math.max(0, Math.min(100, dotLeftPct));
-                                        }
+                                <motion.div
+                                    layout
+                                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                                    className={`flex flex-col gap-2 overflow-y-auto ${selectedDay ? 'w-2/5 pr-4 border-r border-white/10' : 'w-full'}`}
+                                >
+                                    <LayoutGroup>
+                                        {fiveDayData.map((item, index) => {
+                                            const isToday = index === 0;
+                                            const isSelected = selectedDay === item;
+                                            const leftPct = ((item.min - globalMin) / totalRange) * 100;
+                                            const widthPct = ((item.max - item.min) / totalRange) * 100;
+                                            let dotLeftPct = 0;
+                                            if (isToday && currentTemp !== undefined) {
+                                                dotLeftPct = ((currentTemp - item.min) / (item.max - item.min)) * 100;
+                                                dotLeftPct = Math.max(0, Math.min(100, dotLeftPct));
+                                            }
 
-                                        return (
+                                            return (
+                                                <motion.div
+                                                    key={index}
+                                                    layout
+                                                    onClick={() => setSelectedDay(item)}
+                                                    whileHover={{ scale: 1.01, backgroundColor: 'rgba(255,255,255,0.08)' }}
+                                                    className={`grid items-center gap-4 py-4 px-4 rounded-xl cursor-pointer transition-colors group ${isSelected ? 'bg-white/10 shadow-inner ring-1 ring-white/20' : 'hover:bg-white/5'} ${selectedDay ? 'grid-cols-[4rem_1fr]' : 'grid-cols-[6rem_4rem_1fr]'}`}
+                                                >
+                                                    <span className={`${selectedDay ? 'text-lg' : 'text-xl'} font-medium tracking-wide drop-shadow-sm`}>{isToday ? 'Today' : item.day.slice(0, 3)}</span>
+
+                                                    <AnimatePresence mode='popLayout'>
+                                                        {!selectedDay && (
+                                                            <motion.div
+                                                                initial={{ opacity: 0, scale: 0.5, width: 0 }}
+                                                                animate={{ opacity: 1, scale: 1, width: 'auto' }}
+                                                                exit={{ opacity: 0, scale: 0.5, width: 0 }}
+                                                                className="flex justify-center drop-shadow-md origin-center"
+                                                            >
+                                                                {getIcon(item.icon)}
+                                                            </motion.div>
+                                                        )}
+                                                    </AnimatePresence>
+
+                                                    <div className="flex items-center gap-3 w-full">
+                                                        <span className={`text-right font-medium tabular-nums drop-shadow-sm ${selectedDay ? 'text-base w-6' : 'text-xl w-10 opacity-90'}`}>{convert(item.min)}°</span>
+                                                        <div className={`flex-1 rounded-full relative overflow-hidden bg-black/5 shadow-inner backdrop-blur-sm ${selectedDay ? 'h-2' : 'h-3.5'}`}>
+                                                            <motion.div
+                                                                initial={{ width: 0, opacity: 0 }}
+                                                                animate={{ width: `${Math.max(widthPct, 5)}%`, opacity: 1 }}
+                                                                transition={{ duration: 1, delay: 0.1 * index, ease: "easeOut" }}
+                                                                className={`absolute top-0 bottom-0 rounded-full shadow-sm opacity-90 ${isSelected ? 'bg-gradient-to-r from-blue-400 via-green-400 to-yellow-400 brightness-110' : 'bg-gradient-to-r from-blue-300 via-green-300 via-yellow-300 to-orange-400'}`}
+                                                                style={{ left: `${leftPct}%` }}
+                                                            >
+                                                                {isToday && currentTemp !== undefined && (
+                                                                    <div className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full border-[3px] border-white/80 shadow-md z-10" style={{ left: `${dotLeftPct}%`, transform: `translate(-50%, -50%)` }} />
+                                                                )}
+                                                            </motion.div>
+                                                        </div>
+                                                        <span className={`text-right font-bold tabular-nums drop-shadow-md ${selectedDay ? 'text-base w-6' : 'text-xl w-10'}`}>{convert(item.max)}°</span>
+                                                    </div>
+                                                </motion.div>
+                                            )
+                                        })}
+
+                                    </LayoutGroup>
+
+                                    <AnimatePresence>
+                                        {!selectedDay && (
                                             <motion.div
-                                                key={index}
-                                                layout
-                                                onClick={() => setSelectedDay(item)}
-                                                whileHover={{ scale: 1.01, backgroundColor: 'rgba(255,255,255,0.08)' }}
-                                                className={`grid items-center gap-4 py-4 px-4 rounded-xl cursor-pointer transition-colors group ${isSelected ? 'bg-white/10 shadow-inner ring-1 ring-white/20' : 'hover:bg-white/5'} ${selectedDay ? 'grid-cols-[4rem_1fr]' : 'grid-cols-[6rem_4rem_1fr]'}`}
+                                                initial={{ opacity: 0, height: 0 }}
+                                                animate={{ opacity: 1, height: 'auto' }}
+                                                exit={{ opacity: 0, height: 0 }}
+                                                className="mt-6 p-6 rounded-2xl bg-white/5 border border-white/10 shadow-lg backdrop-blur-sm flex items-start gap-4 hover:bg-white/10 transition-colors overflow-hidden"
                                             >
-                                                <span className={`${selectedDay ? 'text-lg' : 'text-xl'} font-medium tracking-wide drop-shadow-sm`}>{isToday ? 'Today' : item.day.slice(0, 3)}</span>
-
-                                                {!selectedDay && (
-                                                    <div className="flex justify-center scale-125 drop-shadow-md">
-                                                        {getIcon(item.icon)}
-                                                    </div>
-                                                )}
-
-                                                <div className="flex items-center gap-3 w-full">
-                                                    <span className={`text-right font-medium tabular-nums drop-shadow-sm ${selectedDay ? 'text-base w-6' : 'text-xl w-10 opacity-90'}`}>{convert(item.min)}°</span>
-                                                    <div className={`flex-1 rounded-full relative overflow-hidden bg-black/5 shadow-inner backdrop-blur-sm ${selectedDay ? 'h-2' : 'h-3.5'}`}>
-                                                        <motion.div
-                                                            initial={{ width: 0, opacity: 0 }}
-                                                            animate={{ width: `${Math.max(widthPct, 5)}%`, opacity: 1 }}
-                                                            transition={{ duration: 1, delay: 0.1 * index, ease: "easeOut" }}
-                                                            className={`absolute top-0 bottom-0 rounded-full shadow-sm opacity-90 ${isSelected ? 'bg-gradient-to-r from-blue-400 via-green-400 to-yellow-400 brightness-110' : 'bg-gradient-to-r from-blue-300 via-green-300 via-yellow-300 to-orange-400'}`}
-                                                            style={{ left: `${leftPct}%` }}
-                                                        >
-                                                            {isToday && currentTemp !== undefined && (
-                                                                <div className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full border-[3px] border-white/80 shadow-md z-10" style={{ left: `${dotLeftPct}%`, transform: `translate(-50%, -50%)` }} />
-                                                            )}
-                                                        </motion.div>
-                                                    </div>
-                                                    <span className={`text-right font-bold tabular-nums drop-shadow-md ${selectedDay ? 'text-base w-6' : 'text-xl w-10'}`}>{convert(item.max)}°</span>
+                                                <div className="p-3 bg-blue-500/20 rounded-full shadow-inner shrink-0 border border-blue-400/30">
+                                                    <Cloud className="w-5 h-5 text-blue-100" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-sm font-bold uppercase tracking-wider text-blue-200/90 mb-1 drop-shadow-sm">Weekly Summary</h4>
+                                                    <p className={`text-lg font-medium leading-relaxed ${textColor} drop-shadow-sm opacity-90`}>
+                                                        {generateWeeklyInsight()}
+                                                    </p>
                                                 </div>
                                             </motion.div>
-                                        )
-                                    })}
-
-                                    {!selectedDay && (
-                                        <motion.div
-                                            initial={{ opacity: 0, y: 10 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            className="mt-6 p-6 rounded-2xl bg-white/5 border border-white/10 shadow-lg backdrop-blur-sm flex items-start gap-4 hover:bg-white/10 transition-colors"
-                                        >
-                                            <div className="p-3 bg-blue-500/20 rounded-full shadow-inner shrink-0 border border-blue-400/30">
-                                                <Cloud className="w-5 h-5 text-blue-100" />
-                                            </div>
-                                            <div>
-                                                <h4 className="text-sm font-bold uppercase tracking-wider text-blue-200/90 mb-1 drop-shadow-sm">Weekly Summary</h4>
-                                                <p className={`text-lg font-medium leading-relaxed ${textColor} drop-shadow-sm opacity-90`}>
-                                                    {generateWeeklyInsight()}
-                                                </p>
-                                            </div>
-                                        </motion.div>
-                                    )}
-                                </div>
+                                        )}
+                                    </AnimatePresence>
+                                </motion.div>
 
                                 {/* Right Column: Details */}
                                 <AnimatePresence mode="wait">
