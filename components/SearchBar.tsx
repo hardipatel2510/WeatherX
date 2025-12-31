@@ -10,13 +10,14 @@ import SavedLocationsDrawer from '@/components/SavedLocationsDrawer';
 
 interface SearchBarProps {
     defaultValue?: string;
+    isDrawerOpen: boolean;
+    setIsDrawerOpen: (open: boolean) => void;
 }
 
-export default function SearchBar({ defaultValue = '' }: SearchBarProps) {
+export default function SearchBar({ defaultValue = '', isDrawerOpen, setIsDrawerOpen }: SearchBarProps) {
     const [query, setQuery] = useState(defaultValue);
     const router = useRouter();
     const [loading, setLoading] = useState(false);
-    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
     const searchParams = useSearchParams();
     const currentUnit = searchParams.get('unit') || 'imperial';

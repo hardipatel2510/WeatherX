@@ -202,110 +202,8 @@ export function WeatherDetailPanel({ type, data, onClose, onNext, onPrev }: Weat
 
             // ... cases for moon, sunrise, wind, humidity, pressure, visibility, feelsLike ...
             case 'moon': {
-                // ... (keep existing moon logic)
-                // 1. Timeline Logic
-                const timeline = React.useMemo(() => getMoonTimeline(data.lat, data.lon), [data.lat, data.lon]);
-                const [selectedIdx, setSelectedIdx] = React.useState(0);
-                const currentSelection = timeline[selectedIdx];
-
-                // 2. Computed Props for Big Moon
-                const phase = currentSelection.phase;
-                // Illumination
-                const illum = 1 - Math.abs((phase - 0.5) * 2);
-                const percent = Math.round(illum * 100);
-
-                let pName = 'New Moon';
-                if (phase > 0 && phase < 0.25) pName = 'Waxing Crescent';
-                else if (phase === 0.25) pName = 'First Quarter';
-                else if (phase > 0.25 && phase < 0.5) pName = 'Waxing Gibbous';
-                else if (phase === 0.5) pName = 'Full Moon';
-                else if (phase > 0.5 && phase < 0.75) pName = 'Waning Gibbous';
-                else if (phase === 0.75) pName = 'Last Quarter';
-                else if (phase > 0.75 && phase < 1) pName = 'Waning Crescent';
-
-                const { moonrise, moonset } = getMoonTimes(data.lat, data.lon, currentSelection.date);
-
-                const formatTime = (t: number | null) =>
-                    t ? new Date(t * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--";
-
-                const displayRise = formatTime(moonrise);
-                const displaySet = formatTime(moonset);
-
-                const mRise = parseTimeStr(displayRise);
-                const mSet = parseTimeStr(displaySet);
-
-                let isMoonUp = true;
-                if (selectedIdx === 0 && mRise !== null && mSet !== null) {
-                    if (mRise < mSet) isMoonUp = currentMins >= mRise && currentMins <= mSet;
-                    else isMoonUp = currentMins >= mRise || currentMins <= mSet;
-                } else {
-                    isMoonUp = true;
-                }
-
                 return (
-                    <div className="h-full flex flex-col overflow-y-auto overscroll-contain">
-                        <div className="flex flex-col items-center justify-center shrink-0 min-h-[350px] relative">
-                            <MoonPhaseVisual phase={phase} lat={data.lat} isUp={isMoonUp} className="w-56 h-56" />
-
-                            <h2 className="text-3xl font-light mt-8 text-center">{pName}</h2>
-                            <p className="text-sm opacity-60 mt-2">Illumination {percent}%</p>
-                            {selectedIdx === 0 && !isMoonUp && <span className="mt-2 text-xs font-bold border border-white/20 px-2 py-1 rounded">Below Horizon</span>}
-                        </div>
-
-                        <div className="relative w-full mt-6">
-                            <div className="w-full grid grid-cols-7 gap-0 justify-items-center items-center pointer-events-auto select-none">
-                                {timeline.map((m, i) => (
-                                    <div
-                                        key={i}
-                                        onClick={() => setSelectedIdx(i)}
-                                        className="flex flex-col items-center justify-center cursor-pointer w-[44px] min-w-[44px]
-                                        transition-transform duration-300 ease-out hover:-translate-y-2"
-                                    >
-                                        <div className="day w-[36px] h-[36px] flex items-center justify-center relative shrink-0">
-                                            <div
-                                                className={`moon w-full h-full rounded-full overflow-hidden relative bg-black box-border transition-all duration-300
-                                                ${i === selectedIdx
-                                                        ? "ring-2 ring-white scale-110 shadow-[0_0_14px_rgba(255,255,255,0.8)]"
-                                                        : "opacity-70 hover:opacity-100 hover:scale-105"}`}
-                                            >
-                                                <div
-                                                    className="absolute inset-0 bg-white"
-                                                    style={{
-                                                        clipPath: `circle(${m.fraction * 50}% at ${m.waxing ? "70%" : "30%"
-                                                            } 50%)`
-                                                    }}
-                                                />
-                                            </div>
-                                        </div>
-                                        <span className="text-[9px] uppercase font-bold tracking-wider text-white opacity-90 mt-2 whitespace-nowrap">
-                                            {m.label}
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="mt-8 mb-8">
-                            <div className="p-4 grid grid-cols-2 gap-4">
-                                <div className="bg-white/10 rounded-xl p-4 flex flex-col items-center backdrop-blur-md transition-all">
-                                    <span className="text-xs uppercase opacity-50 mb-1">{selectedIdx === 0 ? "Moonrise" : "Rise"}</span>
-                                    <span className="text-lg">{displayRise}</span>
-                                </div>
-                                <div className="bg-white/10 rounded-xl p-4 flex flex-col items-center backdrop-blur-md">
-                                    <span className="text-xs uppercase opacity-50 mb-1">Moonset</span>
-                                    <span className="text-lg">{displaySet}</span>
-                                </div>
-                                <div className="bg-white/10 rounded-xl p-4 flex flex-col items-center backdrop-blur-md">
-                                    <span className="text-xs uppercase opacity-50 mb-1">Next Full</span>
-                                    <span className="text-lg">{Math.round((0.5 - phase + (phase > 0.5 ? 1 : 0)) * 29.5)} Days</span>
-                                </div>
-                                <div className="bg-white/10 rounded-xl p-4 flex flex-col items-center backdrop-blur-md">
-                                    <span className="text-xs uppercase opacity-50 mb-1">Distance</span>
-                                    <span className="text-lg">384,400 km</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    <MoonDetailContent data={data} currentMins={currentMins} />
                 );
             }
 
@@ -454,4 +352,111 @@ export function WeatherDetailPanel({ type, data, onClose, onNext, onPrev }: Weat
         </AnimatePresence>
     );
 
+}
+
+function MoonDetailContent({ data, currentMins }: { data: WeatherData; currentMins: number }) {
+    // 1. Timeline Logic
+    const timeline = React.useMemo(() => getMoonTimeline(data.lat, data.lon), [data.lat, data.lon]);
+    const [selectedIdx, setSelectedIdx] = React.useState(0);
+    const currentSelection = timeline[selectedIdx];
+
+    // 2. Computed Props for Big Moon
+    const phase = currentSelection.phase;
+    // Illumination
+    const illum = 1 - Math.abs((phase - 0.5) * 2);
+    const percent = Math.round(illum * 100);
+
+    let pName = 'New Moon';
+    if (phase > 0 && phase < 0.25) pName = 'Waxing Crescent';
+    else if (phase === 0.25) pName = 'First Quarter';
+    else if (phase > 0.25 && phase < 0.5) pName = 'Waxing Gibbous';
+    else if (phase === 0.5) pName = 'Full Moon';
+    else if (phase > 0.5 && phase < 0.75) pName = 'Waning Gibbous';
+    else if (phase === 0.75) pName = 'Last Quarter';
+    else if (phase > 0.75 && phase < 1) pName = 'Waning Crescent';
+
+    const { moonrise, moonset } = getMoonTimes(data.lat, data.lon, currentSelection.date);
+
+    const formatTime = (t: number | null) =>
+        t ? new Date(t * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--";
+
+    const displayRise = formatTime(moonrise);
+    const displaySet = formatTime(moonset);
+
+    const mRise = parseTimeStr(displayRise);
+    const mSet = parseTimeStr(displaySet);
+
+    let isMoonUp = true;
+    if (selectedIdx === 0 && mRise !== null && mSet !== null) {
+        if (mRise < mSet) isMoonUp = currentMins >= mRise && currentMins <= mSet;
+        else isMoonUp = currentMins >= mRise || currentMins <= mSet;
+    } else {
+        isMoonUp = true;
+    }
+
+    return (
+        <div className="h-full flex flex-col overflow-y-auto overscroll-contain">
+            <div className="flex flex-col items-center justify-center shrink-0 min-h-[350px] relative">
+                <MoonPhaseVisual phase={phase} lat={data.lat} isUp={isMoonUp} className="w-56 h-56" />
+
+                <h2 className="text-3xl font-light mt-8 text-center">{pName}</h2>
+                <p className="text-sm opacity-60 mt-2">Illumination {percent}%</p>
+                {selectedIdx === 0 && !isMoonUp && <span className="mt-2 text-xs font-bold border border-white/20 px-2 py-1 rounded">Below Horizon</span>}
+            </div>
+
+            <div className="relative w-full mt-6">
+                <div className="w-full grid grid-cols-7 gap-0 justify-items-center items-center pointer-events-auto select-none">
+                    {timeline.map((m, i) => (
+                        <div
+                            key={i}
+                            onClick={() => setSelectedIdx(i)}
+                            className="flex flex-col items-center justify-center cursor-pointer w-[44px] min-w-[44px]
+                                        transition-transform duration-300 ease-out hover:-translate-y-2"
+                        >
+                            <div className="day w-[36px] h-[36px] flex items-center justify-center relative shrink-0">
+                                <div
+                                    className={`moon w-full h-full rounded-full overflow-hidden relative bg-black box-border transition-all duration-300
+                                                ${i === selectedIdx
+                                            ? "ring-2 ring-white scale-110 shadow-[0_0_14px_rgba(255,255,255,0.8)]"
+                                            : "opacity-70 hover:opacity-100 hover:scale-105"}`}
+                                >
+                                    <div
+                                        className="absolute inset-0 bg-white"
+                                        style={{
+                                            clipPath: `circle(${m.fraction * 50}% at ${m.waxing ? "70%" : "30%"
+                                                } 50%)`
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                            <span className="text-[9px] uppercase font-bold tracking-wider text-white opacity-90 mt-2 whitespace-nowrap">
+                                {m.label}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            <div className="mt-8 mb-8">
+                <div className="p-4 grid grid-cols-2 gap-4">
+                    <div className="bg-white/10 rounded-xl p-4 flex flex-col items-center backdrop-blur-md transition-all">
+                        <span className="text-xs uppercase opacity-50 mb-1">{selectedIdx === 0 ? "Moonrise" : "Rise"}</span>
+                        <span className="text-lg">{displayRise}</span>
+                    </div>
+                    <div className="bg-white/10 rounded-xl p-4 flex flex-col items-center backdrop-blur-md">
+                        <span className="text-xs uppercase opacity-50 mb-1">Moonset</span>
+                        <span className="text-lg">{displaySet}</span>
+                    </div>
+                    <div className="bg-white/10 rounded-xl p-4 flex flex-col items-center backdrop-blur-md">
+                        <span className="text-xs uppercase opacity-50 mb-1">Next Full</span>
+                        <span className="text-lg">{Math.round((0.5 - phase + (phase > 0.5 ? 1 : 0)) * 29.5)} Days</span>
+                    </div>
+                    <div className="bg-white/10 rounded-xl p-4 flex flex-col items-center backdrop-blur-md">
+                        <span className="text-xs uppercase opacity-50 mb-1">Distance</span>
+                        <span className="text-lg">384,400 km</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
 }
